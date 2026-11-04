@@ -165,3 +165,8 @@ body{background:radial-gradient(ellipse at 80% -10%,rgba(104,72,150,.16),transpa
 .admin-edit-form small{font-size:10px;color:var(--muted)}
 .admin-modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:8px}
 @media(max-width:720px){.admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-panel{padding:14px}.admin-panel-head{align-items:stretch;flex-direction:column}.admin-panel-head input{max-width:none;width:100%}.admin-row{align-items:flex-start;flex-wrap:wrap}.admin-row-info{min-width:calc(100% - 80px)}.admin-row-actions{width:100%;justify-content:flex-end}.admin-welcome{padding:23px}.admin-welcome h2{font-size:24px}}
+
+/* EDITOR DE LETRAS: TRANSFORMADOR */
+.lyric-transform-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 12px}
+.lyric-transform-actions .helper-text{margin:0}
+#lyrics-raw,#song-lyrics{width:100%;resize:vertical}
