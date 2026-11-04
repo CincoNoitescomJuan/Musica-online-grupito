@@ -1,3 +1,4 @@
+
 const CONFIG=window.ROLEPLAY_MUSIC_CONFIG||{},sb=window.supabase,$=id=>document.getElementById(id),audio=$('audio-player');
 let db=null,session=null,profile=null,songs=[],campaigns=[],currentIndex=-1,currentCampaignFilter=null,lyricLines=[],timedLyrics=[];
 const localVolume=Number(localStorage.getItem('roleplay_music_volume')??'0.8');
@@ -44,3 +45,169 @@ function renderKaraoke(){const s=songs[currentIndex],box=$('karaoke-lines');if(!
 function updateKaraoke(){const s=songs[currentIndex];if(!s||!Array.isArray(s.lyrics_timed)||!s.lyrics_timed.length)return;const timed=s.lyrics_timed;let active=-1;for(let i=0;i<timed.length;i++){if(audio.currentTime>=Number(timed[i].time))active=i;else break;}document.querySelectorAll('.karaoke-line').forEach((el,i)=>{el.classList.toggle('current',i===active);el.classList.toggle('past',i<active);el.classList.toggle('upcoming',i>active);if(i===active)el.scrollIntoView({behavior:'smooth',block:'center'});});}
 function init(){if(!sb||!CONFIG.supabaseUrl||!CONFIG.supabaseAnonKey){setConnection(false,'Configura Supabase');return;}db=sb.createClient(CONFIG.supabaseUrl,CONFIG.supabaseAnonKey);db.auth.getSession().then(async({data,error})=>{if(error)throw error;session=data.session;if(session){await loadProfile();updateIdentity();await loadAll();}else{$('identity-panel').classList.remove('hidden');$('app-content').classList.add('hidden');}setConnection(true,'Conectado a Supabase');}).catch(e=>{setConnection(false,'Error de conexión');toast(e.message,true);});db.auth.onAuthStateChange(async(_event,s)=>{session=s;if(session){try{await loadProfile();updateIdentity();await loadAll();}catch(e){toast(e.message,true);}}});}
 renderTimingList();init();
+
+
+// ===== ROLEPLAY MUSIC 3.0: SALAS SINCRONIZADAS =====
+let activeRoom=null, roomChannel=null, roomApplyingRemote=false, roomHeartbeat=null;
+function roomPlaylist(){
+ if(!activeRoom)return [];
+ return activeRoom.campaign_id ? songs.filter(s=>s.campaign_id===activeRoom.campaign_id) : songs;
+}
+function updateRoomCampaignOptions(){
+ const sel=$('new-room-campaign');if(!sel)return;
+ const keep=sel.value;
+ sel.innerHTML='<option value="">Sala general · Todas las canciones</option>'+campaigns.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+ if([...sel.options].some(o=>o.value===keep))sel.value=keep;
+}
+const oldLoadAll=loadAll;
+loadAll=async function(){await oldLoadAll();updateRoomCampaignOptions();if(activeRoom)renderRoomPlaylist();};
+const oldShowView=showView;
+showView=function(v){oldShowView(v);if(v==='rooms'){updateRoomCampaignOptions();renderRoomPlaylist();}};
+function makeRoomCode(){return Array.from(crypto.getRandomValues(new Uint8Array(4))).map(x=>(x%36).toString(36)).join('').toUpperCase();}
+function roomSongById(id){return songs.find(s=>s.id===id)||null;}
+function renderRoomPlaylist(){
+ const list=roomPlaylist(),box=$('room-playlist');if(!box)return;
+ $('room-playlist-count').textContent=`${list.length} ${list.length===1?'canción':'canciones'}`;
+ box.innerHTML='';
+ if(!activeRoom||!list.length){box.innerHTML='<div class="empty-state"><h3>No hay canciones en esta lista</h3><p>Añade canciones a esta campaña o elige una sala general.</p></div>';return;}
+ list.forEach((s,i)=>{
+  const row=document.createElement('button');row.type='button';row.className='room-song-row'+(s.id===activeRoom.current_song_id?' selected':'');
+  const art=document.createElement('span');art.className='room-song-art';if(s.coverUrl){art.style.backgroundImage=`url("${s.coverUrl}")`;art.textContent='';}else art.textContent='♫';
+  const meta=document.createElement('span');meta.className='room-song-meta';const title=document.createElement('strong');title.textContent=s.title;const artist=document.createElement('small');artist.textContent=s.artist||'Canción de rol';meta.append(title,artist);
+  const action=document.createElement('span');action.textContent=s.id===activeRoom.current_song_id?'SONANDO':'▶';row.append(art,meta,action);row.onclick=()=>roomSelectSong(s,true);box.append(row);
+ });
+}
+async function createRoom(e){
+ e.preventDefault();const name=$('new-room-name').value.trim(),campaignId=$('new-room-campaign').value||null;
+ if(!name)return toast('Pon un nombre a la sala.',true);
+ const code=makeRoomCode();
+ try{
+  const {data,error}=await db.from('rooms').insert({name,room_code:code,campaign_id:campaignId,created_by:session.user.id,current_song_id:null,is_playing:false,position_seconds:0}).select().single();
+  if(error)throw error;
+  $('create-room-form').reset();await enterRoom(data);toast('Sala creada. Comparte el código con tus amigos.');
+ }catch(err){toast(err.message||'No se pudo crear la sala.',true);}
+}
+async function joinRoom(e){
+ e.preventDefault();const code=$('join-room-code').value.trim().toUpperCase();
+ if(!code)return;
+ try{const {data,error}=await db.rpc('join_room_by_code',{p_code:code});if(error)throw error;const room=Array.isArray(data)?data[0]:data;if(!room)throw Error('No encontramos ninguna sala con ese código.');$('join-room-form').reset();await enterRoom(room);}
+ catch(err){toast(err.message||'No se pudo entrar en la sala.',true);}
+}
+async function enterRoom(room){
+ if(roomChannel){await db.removeChannel(roomChannel);roomChannel=null;}
+ activeRoom=room;
+ $('active-room').classList.remove('hidden');$('rooms-empty').classList.add('hidden');
+ $('active-room-name').textContent=room.name;
+ const campaign=campaigns.find(c=>c.id===room.campaign_id);
+ $('active-room-subtitle').textContent=campaign?`Lista exclusiva: ${campaign.name}`:'Sala general · Todas las campañas';
+ $('active-room-code').textContent=room.room_code;
+ renderRoomPlaylist();
+ roomChannel=db.channel('room-'+room.id)
+  .on('postgres_changes',{event:'UPDATE',schema:'public',table:'rooms',filter:`id=eq.${room.id}`},payload=>{activeRoom=payload.new;applyRemoteRoomState(payload.new);})
+  .subscribe(status=>{$('room-sync-status').textContent=status==='SUBSCRIBED'?'● Sincronización en directo':'Conectando…';});
+ await applyRemoteRoomState(room);
+ if(roomHeartbeat)clearInterval(roomHeartbeat);
+ roomHeartbeat=setInterval(()=>{if(activeRoom&&audio&&!audio.paused&&currentRoomSong()){publishRoomState(false).catch(()=>{});}},12000);
+}
+function currentRoomSong(){return activeRoom?roomSongById(activeRoom.current_song_id):null;}
+async function applyRemoteRoomState(state){
+ if(!state)return;activeRoom=state;renderRoomPlaylist();
+ const song=roomSongById(state.current_song_id);
+ if(!song){if(currentIndex>=0&&activeRoom){audio.pause();}$('room-song-title').textContent='Esperando canción';$('room-song-artist').textContent='Elige una canción de la lista';$('room-cover').style.backgroundImage='';$('room-cover').textContent='♫';return;}
+ const needsSource=audio.dataset.roomSongId!==song.id;
+ roomApplyingRemote=true;
+ if(needsSource){audio.src=song.audioUrl;audio.dataset.roomSongId=song.id;currentIndex=songs.findIndex(s=>s.id===song.id);syncPlayerDisplay(song);}
+ const elapsed=state.is_playing?Math.max(0,(Date.now()-new Date(state.updated_at).getTime())/1000):0;
+ const target=Math.max(0,Number(state.position_seconds||0)+elapsed);
+ if(Number.isFinite(audio.duration)&&Math.abs(audio.currentTime-target)>1.35)audio.currentTime=Math.min(target,audio.duration||target);
+ else if(!Number.isFinite(audio.duration))audio.addEventListener('loadedmetadata',()=>{if(Math.abs(audio.currentTime-target)>1.35)audio.currentTime=Math.min(target,audio.duration||target);if(state.is_playing)audio.play().catch(()=>{});else audio.pause();},{once:true});
+ if(state.is_playing){try{await audio.play();}catch(e){$('room-sync-status').textContent='Pulsa reproducir para permitir el audio en tu navegador.';}}
+ else audio.pause();
+ roomApplyingRemote=false;
+ $('room-song-title').textContent=song.title;$('room-song-artist').textContent=song.artist||'Canción de rol';
+ $('room-cover').style.backgroundImage=song.coverUrl?`url("${song.coverUrl}")`:'';$('room-cover').textContent=song.coverUrl?'':'♫';
+ renderRoomKaraoke(song);
+}
+function syncPlayerDisplay(song){
+ $('player-title').textContent=song.title;$('player-artist').textContent=song.artist||'Canción de rol';
+ $('player-cover').style.backgroundImage=song.coverUrl?`url("${song.coverUrl}")`:'';$('player-cover').textContent=song.coverUrl?'':'♫';
+ $('full-title').textContent=song.title;$('full-artist').textContent=song.artist||'Canción de rol';
+ $('full-cover').style.backgroundImage=song.coverUrl?`url("${song.coverUrl}")`:'';$('full-cover').textContent=song.coverUrl?'':'♫';
+ renderKaraoke();
+}
+async function publishRoomState(playing){
+ if(!activeRoom||roomApplyingRemote)return;
+ const {error}=await db.from('rooms').update({current_song_id:activeRoom.current_song_id,is_playing:playing,position_seconds:Number(audio.currentTime||0),updated_at:new Date().toISOString()}).eq('id',activeRoom.id);
+ if(error)throw error;
+}
+async function roomSelectSong(song,autoplay){
+ if(!activeRoom)return;
+ const allowed=roomPlaylist().some(s=>s.id===song.id);
+ if(!allowed)return toast('Esta canción no pertenece a la lista de reproducción de esta sala.',true);
+ activeRoom.current_song_id=song.id;audio.dataset.roomSongId='';
+ const {error}=await db.from('rooms').update({current_song_id:song.id,is_playing:!!autoplay,position_seconds:0,updated_at:new Date().toISOString()}).eq('id',activeRoom.id);
+ if(error){toast(error.message,true);return;}
+ await applyRemoteRoomState({...activeRoom,current_song_id:song.id,is_playing:!!autoplay,position_seconds:0,updated_at:new Date().toISOString()});
+}
+async function roomToggle(){
+ if(!activeRoom)return;
+ if(!activeRoom.current_song_id){const list=roomPlaylist();if(!list.length)return toast('No hay canciones disponibles en esta sala.');return roomSelectSong(list[0],true);}
+ await publishRoomState(audio.paused);
+}
+async function roomNext(direction=1){
+ if(!activeRoom)return;
+ const list=roomPlaylist();if(!list.length)return toast('No hay canciones disponibles en esta sala.');
+ let index=list.findIndex(s=>s.id===activeRoom.current_song_id);index=index<0?0:(index+direction+list.length)%list.length;
+ await roomSelectSong(list[index],true);
+}
+$('create-room-form').addEventListener('submit',createRoom);
+$('join-room-form').addEventListener('submit',joinRoom);
+$('room-play').onclick=roomToggle;
+$('room-next').onclick=()=>roomNext(1);
+$('room-prev').onclick=()=>roomNext(-1);
+$('leave-room').onclick=async()=>{if(roomChannel){await db.removeChannel(roomChannel);roomChannel=null;}if(roomHeartbeat)clearInterval(roomHeartbeat);activeRoom=null;$('active-room').classList.add('hidden');$('rooms-empty').classList.remove('hidden');audio.pause();delete audio.dataset.roomSongId;};
+$('copy-room-code').onclick=()=>{if(activeRoom)navigator.clipboard.writeText(activeRoom.room_code).then(()=>toast('Código copiado.')).catch(()=>toast('No se pudo copiar el código.',true));};
+function renderRoomKaraoke(song){
+ const box=$('karaoke-lines'),timed=Array.isArray(song.lyrics_timed)?song.lyrics_timed:[];
+ if(!timed.length){box.innerHTML=song.lyrics?`<p class="karaoke-placeholder">Esta canción todavía no tiene tiempos marcados.</p><div class="plain-lyrics">${escapeHtml(song.lyrics).replace(/\n/g,'<br>')}</div>`:'<p class="karaoke-placeholder">Esta canción todavía no tiene letra.</p>';return;}
+ box.innerHTML=timed.map((l,i)=>`<p class="karaoke-line" data-kline="${i}">${escapeHtml(l.text)}</p>`).join('');
+}
+const previousUpdateKaraoke=updateKaraoke;
+updateKaraoke=function(){
+ if(activeRoom&&currentRoomSong()){const timed=Array.isArray(currentRoomSong().lyrics_timed)?currentRoomSong().lyrics_timed:[];let active=-1;for(let i=0;i<timed.length;i++){if(audio.currentTime>=Number(timed[i].time))active=i;else break;}document.querySelectorAll('.karaoke-line').forEach((el,i)=>{el.classList.toggle('current',i===active);el.classList.toggle('past',i<active);el.classList.toggle('upcoming',i>active);if(i===active)el.scrollIntoView({behavior:'smooth',block:'center'});});}
+ else previousUpdateKaraoke();
+};
+const previousPlaySong=playSong;
+playSong=function(i){if(activeRoom){const s=songs[i];if(s)return roomSelectSong(s,true);return;}previousPlaySong(i);};
+const previousNext=audio.onended;
+audio.onended=()=>{if(activeRoom){roomNext(1);}else if(songs.length)playSong((currentIndex+1)%songs.length);};
+$('play-button').onclick=$('full-play').onclick=async()=>{if(activeRoom){await roomToggle();return;}if(currentIndex<0){if(songs.length)previousPlaySong(0);return;}if(audio.paused)audio.play();else audio.pause();};
+$('prev-button').onclick=$('full-prev').onclick=()=>{if(activeRoom){roomNext(-1);return;}if(songs.length)previousPlaySong(currentIndex<=0?songs.length-1:currentIndex-1);};
+$('next-button').onclick=$('full-next').onclick=()=>{if(activeRoom){roomNext(1);return;}if(songs.length)previousPlaySong(currentIndex>=songs.length-1?0:currentIndex+1);};
+audio.addEventListener('seeked',()=>{if(activeRoom&&!roomApplyingRemote)publishRoomState(!audio.paused).catch(e=>toast(e.message,true));});
+audio.addEventListener('play',()=>{if(activeRoom&&!roomApplyingRemote)publishRoomState(true).catch(()=>{});});
+audio.addEventListener('pause',()=>{if(activeRoom&&!roomApplyingRemote&&audio.dataset.roomSongId)publishRoomState(false).catch(()=>{});});
+audio.addEventListener('timeupdate',()=>{if(activeRoom){$('room-time').textContent=fmt(audio.currentTime);$('room-duration').textContent=fmt(audio.duration);$('room-progress-fill').style.width=(audio.duration?audio.currentTime/audio.duration*100:0)+'%';}});
+
+// En la biblioteca individual, la reproducción también respeta la colección
+// de la canción actual: campaña concreta o canciones sin campaña.
+function localPlaylist(){
+ if(currentIndex<0||!songs[currentIndex])return songs.filter(s=>!s.campaign_id);
+ const campaignId=songs[currentIndex].campaign_id;
+ return songs.filter(s=>campaignId?s.campaign_id===campaignId:!s.campaign_id);
+}
+function localNext(direction){
+ const list=localPlaylist();if(!list.length)return;
+ let i=list.findIndex(s=>s.id===songs[currentIndex]?.id);
+ i=i<0?0:(i+direction+list.length)%list.length;
+ const nextIndex=songs.findIndex(s=>s.id===list[i].id);
+ previousPlaySong(nextIndex);
+}
+const playSongBeforeCampaignGuard=playSong;
+playSong=function(i){
+ if(activeRoom){const s=songs[i];if(s)return roomSelectSong(s,true);return;}
+ playSongBeforeCampaignGuard(i);
+};
+$('next-button').onclick=$('full-next').onclick=()=>{if(activeRoom){roomNext(1);return;}localNext(1);};
+$('prev-button').onclick=$('full-prev').onclick=()=>{if(activeRoom){roomNext(-1);return;}localNext(-1);};
+audio.onended=()=>{if(activeRoom){roomNext(1);}else localNext(1);};
