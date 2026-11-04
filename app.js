@@ -81,9 +81,11 @@ async function createRoom(e){
  if(!name)return toast('Pon un nombre a la sala.',true);
  const code=makeRoomCode();
  try{
-  const {data,error}=await db.from('rooms').insert({name,room_code:code,campaign_id:campaignId,created_by:session.user.id,current_song_id:null,is_playing:false,position_seconds:0}).select().single();
+  const {data,error}=await db.rpc('create_room',{p_name:name,p_room_code:code,p_campaign_id:campaignId});
   if(error)throw error;
-  $('create-room-form').reset();await enterRoom(data);toast('Sala creada. Comparte el código con tus amigos.');
+  const createdRoom=Array.isArray(data)?data[0]:data;
+  if(!createdRoom)throw new Error('Supabase no devolvió la sala creada.');
+  $('create-room-form').reset();await enterRoom(createdRoom);toast('Sala creada. Comparte el código con tus amigos.');
  }catch(err){toast(err.message||'No se pudo crear la sala.',true);}
 }
 async function joinRoom(e){
