@@ -171,14 +171,37 @@ $('room-prev').onclick=()=>roomNext(-1);
 $('leave-room').onclick=async()=>{if(roomChannel){await db.removeChannel(roomChannel);roomChannel=null;}if(roomHeartbeat)clearInterval(roomHeartbeat);activeRoom=null;$('active-room').classList.add('hidden');$('rooms-empty').classList.remove('hidden');audio.pause();delete audio.dataset.roomSongId;};
 $('copy-room-code').onclick=()=>{if(activeRoom)navigator.clipboard.writeText(activeRoom.room_code).then(()=>toast('Código copiado.')).catch(()=>toast('No se pudo copiar el código.',true));};
 function renderRoomKaraoke(song){
- const box=$('karaoke-lines'),timed=Array.isArray(song.lyrics_timed)?song.lyrics_timed:[];
- if(!timed.length){box.innerHTML=song.lyrics?`<p class="karaoke-placeholder">Esta canción todavía no tiene tiempos marcados.</p><div class="plain-lyrics">${escapeHtml(song.lyrics).replace(/\n/g,'<br>')}</div>`:'<p class="karaoke-placeholder">Esta canción todavía no tiene letra.</p>';return;}
+ const box=$('karaoke-lines');
+ // Los avisos periódicos de sincronización de la sala no deben reconstruir la letra.
+ // Solo la dibujamos cuando cambia la canción o aún no se ha creado su contenido.
+ if(box.dataset.roomKaraokeSongId===song.id)return;
+ const timed=Array.isArray(song.lyrics_timed)?song.lyrics_timed:[];
+ if(!timed.length){box.innerHTML=song.lyrics?`<p class="karaoke-placeholder">Esta canción todavía no tiene tiempos marcados.</p><div class="plain-lyrics">${escapeHtml(song.lyrics).replace(/\n/g,'<br>')}</div>`:'<p class="karaoke-placeholder">Esta canción todavía no tiene letra.</p>';box.dataset.roomKaraokeSongId=song.id;return;}
  box.innerHTML=timed.map((l,i)=>`<p class="karaoke-line" data-kline="${i}">${escapeHtml(l.text)}</p>`).join('');
+ box.dataset.roomKaraokeSongId=song.id;
 }
+let lastRoomKaraokeActive=null;
 const previousUpdateKaraoke=updateKaraoke;
 updateKaraoke=function(){
- if(activeRoom&&currentRoomSong()){const timed=Array.isArray(currentRoomSong().lyrics_timed)?currentRoomSong().lyrics_timed:[];let active=-1;for(let i=0;i<timed.length;i++){if(audio.currentTime>=Number(timed[i].time))active=i;else break;}document.querySelectorAll('.karaoke-line').forEach((el,i)=>{el.classList.toggle('current',i===active);el.classList.toggle('past',i<active);el.classList.toggle('upcoming',i>active);if(i===active)el.scrollIntoView({behavior:'smooth',block:'center'});});}
- else previousUpdateKaraoke();
+ if(activeRoom&&currentRoomSong()){
+  const timed=Array.isArray(currentRoomSong().lyrics_timed)?currentRoomSong().lyrics_timed:[];
+  let active=-1;
+  for(let i=0;i<timed.length;i++){if(audio.currentTime>=Number(timed[i].time))active=i;else break;}
+  document.querySelectorAll('.karaoke-line').forEach((el,i)=>{
+   el.classList.toggle('current',i===active);
+   el.classList.toggle('past',i<active);
+   el.classList.toggle('upcoming',i>active);
+  });
+  // Desplazar solo al cambiar de frase, no en cada actualización del reproductor.
+  const songId=currentRoomSong().id, marker=`${songId}:${active}`;
+  if(active>=0&&marker!==lastRoomKaraokeActive){
+   lastRoomKaraokeActive=marker;
+   document.querySelector(`.karaoke-line[data-kline="${active}"]`)?.scrollIntoView({behavior:'smooth',block:'center'});
+  }
+ }else{
+  lastRoomKaraokeActive=null;
+  previousUpdateKaraoke();
+ }
 };
 const previousPlaySong=playSong;
 playSong=function(i){if(activeRoom){const s=songs[i];if(s)return roomSelectSong(s,true);return;}previousPlaySong(i);};
