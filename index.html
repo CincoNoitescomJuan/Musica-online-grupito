@@ -6,7 +6,7 @@
  <aside class="sidebar">
   <a class="brand" href="#"><span class="brand-mark">♫</span><span>ROLEPLAY<span class="brand-muted">MUSIC</span></span></a>
   <p class="nav-label">MENÚ</p>
-  <button class="nav-item active" data-view="library">▦ <span>Biblioteca</span></button>
+  <button class="nav-item active" data-view="library">▦ <span>Biblioteca general</span></button>
   <button class="nav-item" data-view="campaigns">▣ <span>Campañas</span></button>
   <button class="nav-item" data-view="rooms">◉ <span>Salas</span></button>
   <button class="nav-item" data-view="upload">＋ <span>Subir canción</span></button>
@@ -20,7 +20,7 @@
   <div id="app-content">
    <section id="library-view" class="view">
     <div class="hero-card"><div class="hero-copy"><span class="eyebrow">BANDA SONORA DE VUESTRAS AVENTURAS</span><h2>Cada historia<br/>merece su canción.</h2><p>Reunid vuestra música de rol en un solo lugar y escuchadla juntos, estéis donde estéis.</p><button class="primary-button" data-go="upload">＋ Añadir canción</button></div><div class="hero-art"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="music-note">♫</div><div class="hero-glow"></div></div></div>
-    <div class="section-heading"><div><span class="eyebrow">VUESTRA COLECCIÓN</span><h2 id="library-heading">Todas las canciones</h2></div><span class="count-pill" id="song-count">0 canciones</span></div>
+    <div class="section-heading"><div><span class="eyebrow">VUESTRA COLECCIÓN</span><h2 id="library-heading">Biblioteca general</h2></div><span class="count-pill" id="song-count">0 canciones</span></div>
     <div id="song-grid" class="song-grid"></div>
    </section>
    <section id="campaigns-view" class="view hidden">
@@ -84,7 +84,7 @@
   </div>
  </main>
 </div>
-<footer class="player-bar"><div class="now-playing"><div class="mini-cover" id="player-cover">♫</div><div><strong id="player-title">Ninguna canción</strong><span id="player-artist">Tu biblioteca musical</span></div></div><div class="player-controls"><div class="control-buttons"><button id="prev-button" aria-label="Anterior">◂</button><button id="play-button" class="play-button" aria-label="Reproducir">▶</button><button id="next-button" aria-label="Siguiente">▸</button><button id="expand-player" aria-label="Ampliar reproductor" title="Abrir reproductor grande">⛶</button></div><div class="progress-row"><span id="current-time">0:00</span><input id="progress" type="range" min="0" max="100" value="0"/><span id="duration">0:00</span></div></div><div class="player-extra"><label class="volume-control" title="Tu volumen personal">🔊 <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8"/></label></div><audio id="audio-player"></audio></footer>
+<footer class="player-bar"><div class="now-playing"><div class="mini-cover" id="player-cover">♫</div><div><strong id="player-title">Ninguna canción</strong><span id="player-artist">Tu biblioteca musical</span></div></div><div class="player-controls"><div class="control-buttons"><button id="prev-button" aria-label="Anterior">◂</button><button id="play-button" class="play-button" aria-label="Reproducir">▶</button><button id="next-button" aria-label="Siguiente">▸</button><button id="expand-player" aria-label="Ampliar reproductor" title="Abrir reproductor grande">⛶</button><button id="queue-open" aria-label="Abrir lista para ahora" title="Lista para ahora">☷</button></div><div class="progress-row"><span id="current-time">0:00</span><input id="progress" type="range" min="0" max="100" value="0"/><span id="duration">0:00</span></div></div><div class="player-extra"><label class="volume-control" title="Tu volumen personal">🔊 <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8"/></label></div><audio id="audio-player"></audio></footer>
 
 <div id="full-player" class="full-player hidden">
  <button id="close-full-player" class="close-full-player" aria-label="Cerrar">✕</button>
@@ -93,6 +93,7 @@
   <div class="karaoke-panel"><span class="eyebrow">LETRA SINCRONIZADA</span><div id="karaoke-lines" class="karaoke-lines"><p class="karaoke-placeholder">Cuando la canción tenga letra sincronizada, aparecerá aquí.</p></div></div>
  </div>
 </div>
+<div id="queue-drawer" class="queue-drawer hidden" aria-label="Lista para ahora"><div class="queue-head"><div><span class="eyebrow">REPRODUCCIÓN PERSONAL</span><h2>Lista para ahora</h2></div><button id="queue-close" class="secondary-button" aria-label="Cerrar cola">✕</button></div><div class="queue-options"><button id="shuffle-toggle" class="secondary-button">⤨ Aleatorio: desactivado</button><button id="repeat-toggle" class="secondary-button">↻ Repetir: desactivado</button><button id="queue-clear" class="secondary-button">Vaciar lista</button></div><p class="helper-text">Añade canciones con «＋ Cola». Puedes reorganizarlas con las flechas.</p><div id="queue-list" class="queue-list"></div></div>
 <div id="admin-modal" class="admin-modal hidden"><div class="admin-modal-card"><button id="admin-modal-close" class="admin-modal-close">×</button><div id="admin-modal-content"></div></div></div>
 <div id="toast" class="toast hidden" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script>
