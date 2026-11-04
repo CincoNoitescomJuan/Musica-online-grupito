@@ -1,4 +1,3 @@
-
 const CONFIG=window.ROLEPLAY_MUSIC_CONFIG||{},sb=window.supabase,$=id=>document.getElementById(id),audio=$('audio-player');
 let db=null,session=null,profile=null,songs=[],campaigns=[],currentIndex=-1,currentCampaignFilter=null,lyricLines=[],timedLyrics=[];
 const localVolume=Number(localStorage.getItem('roleplay_music_volume')??'0.8');
@@ -103,11 +102,11 @@ async function enterRoom(room){
  $('active-room-code').textContent=room.room_code;
  renderRoomPlaylist();
  roomChannel=db.channel('room-'+room.id)
-  .on('postgres_changes',{event:'UPDATE',schema:'public',table:'rooms',filter:`id=eq.${room.id}`},payload=>{activeRoom=payload.new;applyRemoteRoomState(payload.new);})
+  .on('postgres_changes',{event:'UPDATE',schema:'public',table:'rooms',filter:`id=eq.${room.id}`},payload=>{const next=payload.new;activeRoom=next;applyRemoteRoomState(next);})
   .subscribe(status=>{$('room-sync-status').textContent=status==='SUBSCRIBED'?'● Sincronización en directo':'Conectando…';});
  await applyRemoteRoomState(room);
  if(roomHeartbeat)clearInterval(roomHeartbeat);
- roomHeartbeat=setInterval(()=>{if(activeRoom&&audio&&!audio.paused&&currentRoomSong()){publishRoomState(false).catch(()=>{});}},12000);
+ roomHeartbeat=setInterval(()=>{if(activeRoom&&session&&activeRoom.created_by===session.user.id&&!audio.paused&&currentRoomSong()){publishRoomState(true).catch(()=>{});}},12000);
 }
 function currentRoomSong(){return activeRoom?roomSongById(activeRoom.current_song_id):null;}
 async function applyRemoteRoomState(state){
