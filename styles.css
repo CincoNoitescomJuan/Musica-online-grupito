@@ -25,3 +25,44 @@
 .toast.error{background:#3a2028;border-color:#a94f63}
 button:disabled{opacity:.55;cursor:wait}
 @media(max-width:800px){.auth-panel{grid-template-columns:1fr;padding:20px}.account-area{justify-content:flex-end}.topbar{gap:14px;align-items:flex-start}}
+
+/* ROLEPLAY MUSIC 2.0 */
+.campaign-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:17px;margin-top:20px}
+.campaign-card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:12px}
+.campaign-cover{height:145px;border-radius:10px;background:linear-gradient(135deg,#30264b,#1c263c);display:grid;place-items:center;color:#d6c1ff;font-size:48px;background-position:center}
+.campaign-card h3{font:600 15px 'Space Grotesk';margin:12px 2px 5px}
+.campaign-card p{font-size:11px;color:var(--muted);min-height:30px;line-height:1.5}
+.campaign-card button{width:100%}
+.lyric-editor{display:grid;gap:12px;padding:17px;border:1px solid #39334d;border-radius:12px;background:#11111b}
+.lyric-editor strong{font:600 14px 'Space Grotesk'}
+.lyric-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lyric-tools audio{max-width:100%;height:36px}
+.timing-list{display:grid;gap:6px;color:var(--muted);font-size:11px}
+.timing-list div{display:grid;grid-template-columns:55px 1fr 25px;gap:10px;align-items:center;padding:7px 9px;border-radius:7px;background:#1b1a27}
+.timing-list div span:first-child{color:var(--purple);font-variant-numeric:tabular-nums}
+.timing-list button{border:0;background:transparent;color:#ff9caa;cursor:pointer;font-size:17px}
+.volume-control{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:12px}
+.volume-control input{width:100px;accent-color:#bd9aff}
+#expand-player{font-size:18px;margin-left:8px}
+.full-player{position:fixed;inset:0;z-index:50;background:radial-gradient(ellipse at 20% 20%,#2b2141,#0b0b12 65%);padding:5vh 5vw;overflow:auto}
+.close-full-player{position:absolute;right:28px;top:24px;border:1px solid #49405f;background:#201b2c;color:#fff;border-radius:50%;width:42px;height:42px;font-size:18px;cursor:pointer}
+.full-player-layout{max-width:1250px;min-height:90vh;margin:auto;display:grid;grid-template-columns:minmax(280px,.9fr) minmax(320px,1.1fr);gap:6vw;align-items:center}
+.full-art-wrap{display:flex;flex-direction:column;align-items:center;gap:22px}
+.full-art{width:min(100%,430px);aspect-ratio:1;background:linear-gradient(135deg,#392b55,#182538);background-size:cover;background-position:center;border-radius:20px;display:grid;place-items:center;font-size:100px;color:#dfceff;box-shadow:0 25px 90px #0008}
+.full-track-info{text-align:center}
+.full-track-info h2{font:700 clamp(25px,3vw,38px) 'Space Grotesk';margin:9px 0 4px}
+.full-track-info p{color:var(--muted);margin:0}
+.full-controls{width:min(100%,430px)}
+.full-controls .control-buttons{margin:18px 0}
+.full-controls .progress-row{margin-bottom:17px}
+.full-controls .volume-control{justify-content:center}
+.karaoke-panel{height:min(72vh,720px);overflow:hidden;display:flex;flex-direction:column;border-left:1px solid #383149;padding-left:5vw}
+.karaoke-panel>.eyebrow{margin-bottom:25px}
+.karaoke-lines{overflow:auto;scroll-behavior:smooth;padding:10px 18px 35px 0}
+.karaoke-line{font:600 clamp(20px,2.5vw,32px)/1.35 'Space Grotesk';margin:18px 0;transition:.2s;min-height:1.35em}
+.karaoke-line.past{color:#5d586c}
+.karaoke-line.upcoming{color:#858095}
+.karaoke-line.current{color:#e5cfff;text-shadow:0 0 22px #bd8cff77;transform:scale(1.025);transform-origin:left center}
+.karaoke-placeholder{color:#9a93ad;line-height:1.7;font-size:14px}
+.plain-lyrics{white-space:normal;color:#aaa4b7;line-height:2;font-size:16px}
+@media(max-width:850px){.full-player{padding:70px 20px 30px}.full-player-layout{grid-template-columns:1fr;gap:35px}.full-art{width:min(75vw,320px)}.karaoke-panel{height:45vh;border-left:0;border-top:1px solid #383149;padding:25px 0 0}.full-player-layout{min-height:auto}.volume-control input{width:80px}}
