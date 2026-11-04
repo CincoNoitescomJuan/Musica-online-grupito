@@ -27,7 +27,28 @@
     <form id="campaign-form" class="form-card hidden"><label>Nombre de la campaña<input id="campaign-name" maxlength="90" required placeholder="Ej. Las cenizas del reino"/></label><label>Descripción<textarea id="campaign-description" rows="2" maxlength="300" placeholder="Una breve descripción…"></textarea></label><label>Portada de campaña<input id="campaign-cover" type="file" accept="image/png,image/jpeg,image/webp"/></label><div class="form-actions"><span class="helper-text">Todos los miembros pueden crear campañas.</span><button class="primary-button" type="submit">Crear carpeta</button></div></form>
     <div id="campaign-grid" class="campaign-grid"></div>
    </section>
-   <section id="rooms-view" class="view hidden"><div class="section-heading"><div><span class="eyebrow">ESCUCHAD EN COMPAÑÍA</span><h2>Salas de escucha</h2></div></div><div class="panel-card"><div class="empty-icon">◉</div><h3>Las salas llegan en la siguiente fase</h3><p>Después añadiremos las salas y el control de reproducción sincronizado.</p></div></section>
+   <section id="rooms-view" class="view hidden">
+    <div class="section-heading"><div><span class="eyebrow">ESCUCHAD EN COMPAÑÍA</span><h2>Salas sincronizadas</h2></div></div>
+    <div class="room-create-grid">
+     <form id="create-room-form" class="form-card room-form"><h3>Crear una sala</h3>
+      <label>Nombre de la sala<input id="new-room-name" maxlength="70" required placeholder="Ej. Noche de aventuras"/></label>
+      <label>Lista de reproducción<select id="new-room-campaign"><option value="">Sala general · Todas las canciones</option></select></label>
+      <button class="primary-button" type="submit">Crear sala y entrar</button>
+     </form>
+     <form id="join-room-form" class="form-card room-form"><h3>Unirse a una sala</h3>
+      <label>Código de sala<input id="join-room-code" maxlength="8" required placeholder="Ej. A7K9Q2"/></label>
+      <button class="secondary-button" type="submit">Unirse con código</button>
+      <p class="helper-text">Pide el código a quien haya creado la sala.</p>
+     </form>
+    </div>
+    <div id="active-room" class="active-room hidden">
+     <div class="room-heading"><div><span class="eyebrow">SALA ACTUAL</span><h2 id="active-room-name">—</h2><p id="active-room-subtitle"></p></div><div class="room-code-block"><span>CÓDIGO</span><strong id="active-room-code">------</strong><button id="copy-room-code" class="secondary-button">Copiar</button><button id="leave-room" class="secondary-button">Salir</button></div></div>
+     <div class="room-now-playing"><div class="room-cover" id="room-cover">♫</div><div class="room-track"><span class="eyebrow">SONANDO PARA TODOS</span><h3 id="room-song-title">Esperando canción</h3><p id="room-song-artist">El anfitrión puede iniciar la reproducción</p><div class="room-progress"><span id="room-time">0:00</span><div class="room-progress-track"><div id="room-progress-fill"></div></div><span id="room-duration">0:00</span></div></div></div>
+     <div class="room-controls"><button id="room-prev" class="secondary-button">◂ Anterior</button><button id="room-play" class="primary-button">▶ Reproducir</button><button id="room-next" class="secondary-button">Siguiente ▸</button><span id="room-sync-status" class="helper-text">Conectando con la sala…</span></div>
+     <div class="section-heading"><div><span class="eyebrow">LISTA DE ESTA SALA</span><h2>Canciones disponibles</h2></div><span id="room-playlist-count" class="count-pill">0 canciones</span></div><div id="room-playlist" class="room-playlist"></div>
+    </div>
+    <div id="rooms-empty" class="panel-card"><div class="empty-icon">◉</div><h3>Crea una sala o únete a una</h3><p>Todos escucharán la misma canción y el mismo momento. El volumen seguirá siendo individual.</p></div>
+   </section>
    <section id="upload-view" class="view hidden"><div class="section-heading"><div><span class="eyebrow">AMPLIAD LA COLECCIÓN</span><h2>Añadir canción</h2></div></div>
     <form id="song-form" class="form-card">
      <label>Nombre de la canción<input id="song-title" required maxlength="90" placeholder="Ej. El último juramento"/></label>
