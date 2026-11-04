@@ -7,6 +7,7 @@
   <a class="brand" href="#"><span class="brand-mark">♫</span><span>ROLEPLAY<span class="brand-muted">MUSIC</span></span></a>
   <p class="nav-label">MENÚ</p>
   <button class="nav-item active" data-view="library">▦ <span>Biblioteca</span></button>
+  <button class="nav-item" data-view="campaigns">▣ <span>Campañas</span></button>
   <button class="nav-item" data-view="rooms">◉ <span>Salas</span></button>
   <button class="nav-item" data-view="upload">＋ <span>Subir canción</span></button>
   <button class="nav-item" data-view="profile">♙ <span>Mi perfil</span></button>
@@ -14,33 +15,43 @@
  </aside>
  <main class="main-content">
   <header class="topbar"><div><span class="eyebrow">TU MÚSICA, VUESTRAS HISTORIAS</span><h1 id="page-title">Biblioteca musical</h1></div><div class="account-area"><span class="user-chip" id="user-chip">Invitado</span></div></header>
-  <section id="identity-panel" class="auth-panel hidden">
-   <div class="auth-copy"><span class="eyebrow">BIENVENIDO A LA BANDA SONORA</span><h2>Entra en vuestra biblioteca.</h2><p>Elige el nombre con el que aparecerás ante el grupo. No necesitas correo, contraseña ni registro.</p></div>
-   <form id="identity-form" class="auth-form"><label>¿Cómo quieres que te llamemos?<input id="first-name" maxlength="30" minlength="2" required placeholder="Tu nombre en el grupo"/></label><button class="primary-button" id="enter-button" type="submit">Entrar en la biblioteca</button><p class="helper-text">Recordaremos tu identidad en este dispositivo. Podrás cambiar tu nombre cuando quieras desde Mi perfil.</p></form>
-  </section>
+  <section id="identity-panel" class="auth-panel hidden"><div class="auth-copy"><span class="eyebrow">BIENVENIDO A LA BANDA SONORA</span><h2>Entra en vuestra biblioteca.</h2><p>Elige el nombre con el que aparecerás ante el grupo. No necesitas correo, contraseña ni registro.</p></div><form id="identity-form" class="auth-form"><label>¿Cómo quieres que te llamemos?<input id="first-name" maxlength="30" minlength="2" required placeholder="Tu nombre en el grupo"/></label><button class="primary-button" id="enter-button" type="submit">Entrar en la biblioteca</button><p class="helper-text">Recordaremos tu identidad en este dispositivo.</p></form></section>
   <div id="app-content">
    <section id="library-view" class="view">
-    <div class="hero-card"><div class="hero-copy"><span class="eyebrow">BANDA SONORA DE VUESTRAS AVENTURAS</span><h2>Cada historia<br/>merece su canción.</h2><p>Reunid vuestra música de rol en un solo lugar y escuchadla juntos, estéis donde estéis.</p><button class="primary-button" data-go="upload">＋ Añadir primera canción</button></div><div class="hero-art"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="music-note">♫</div><div class="hero-glow"></div></div></div>
-    <div class="section-heading"><div><span class="eyebrow">VUESTRA COLECCIÓN</span><h2>Todas las canciones</h2></div><span class="count-pill" id="song-count">0 canciones</span></div>
-    <div id="song-grid" class="song-grid"><div class="empty-state"><div class="empty-icon">♫</div><h3>La aventura empieza aquí</h3><p>Conecta para ver la biblioteca compartida.</p></div></div>
+    <div class="hero-card"><div class="hero-copy"><span class="eyebrow">BANDA SONORA DE VUESTRAS AVENTURAS</span><h2>Cada historia<br/>merece su canción.</h2><p>Reunid vuestra música de rol en un solo lugar y escuchadla juntos, estéis donde estéis.</p><button class="primary-button" data-go="upload">＋ Añadir canción</button></div><div class="hero-art"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="music-note">♫</div><div class="hero-glow"></div></div></div>
+    <div class="section-heading"><div><span class="eyebrow">VUESTRA COLECCIÓN</span><h2 id="library-heading">Todas las canciones</h2></div><span class="count-pill" id="song-count">0 canciones</span></div>
+    <div id="song-grid" class="song-grid"></div>
+   </section>
+   <section id="campaigns-view" class="view hidden">
+    <div class="section-heading"><div><span class="eyebrow">ORDENAD VUESTRA MÚSICA</span><h2>Campañas</h2></div><button class="primary-button" id="show-campaign-form">＋ Crear campaña</button></div>
+    <form id="campaign-form" class="form-card hidden"><label>Nombre de la campaña<input id="campaign-name" maxlength="90" required placeholder="Ej. Las cenizas del reino"/></label><label>Descripción<textarea id="campaign-description" rows="2" maxlength="300" placeholder="Una breve descripción…"></textarea></label><label>Portada de campaña<input id="campaign-cover" type="file" accept="image/png,image/jpeg,image/webp"/></label><div class="form-actions"><span class="helper-text">Todos los miembros pueden crear campañas.</span><button class="primary-button" type="submit">Crear carpeta</button></div></form>
+    <div id="campaign-grid" class="campaign-grid"></div>
    </section>
    <section id="rooms-view" class="view hidden"><div class="section-heading"><div><span class="eyebrow">ESCUCHAD EN COMPAÑÍA</span><h2>Salas de escucha</h2></div></div><div class="panel-card"><div class="empty-icon">◉</div><h3>Las salas llegan en la siguiente fase</h3><p>Después añadiremos las salas y el control de reproducción sincronizado.</p></div></section>
    <section id="upload-view" class="view hidden"><div class="section-heading"><div><span class="eyebrow">AMPLIAD LA COLECCIÓN</span><h2>Añadir canción</h2></div></div>
     <form id="song-form" class="form-card">
      <label>Nombre de la canción<input id="song-title" required maxlength="90" placeholder="Ej. El último juramento"/></label>
      <label>Personaje / artista<input id="song-artist" maxlength="90" placeholder="Ej. Guille"/></label>
-     <label>Campaña o colección<input id="song-campaign" maxlength="90" placeholder="Ej. Las cenizas del reino"/></label>
+     <label>Campaña<input id="song-campaign-select" type="hidden"/><select id="song-campaign-id"><option value="">Sin campaña</option></select></label>
      <label>Descripción<textarea id="song-description" rows="3" maxlength="400" placeholder="¿Qué cuenta esta canción?"></textarea></label>
      <div class="form-row"><label>Portada (imagen)<input id="song-cover" type="file" accept="image/png,image/jpeg,image/webp"/></label><label>Audio (MP3, WAV, OGG)<input id="song-audio" type="file" accept="audio/*" required/></label></div>
-     <label>Letra<textarea id="song-lyrics" rows="7" placeholder="Pega aquí la letra. Más adelante añadiremos la sincronización verso a verso."></textarea></label>
-     <div class="form-actions"><p class="helper-text">Todos pueden subir canciones. Solo los administradores pueden editarlas o eliminarlas.</p><button class="primary-button" type="submit">Subir a la biblioteca</button></div>
+     <div class="lyric-editor"><div><strong>Letra sincronizada</strong><p class="helper-text">Pega la letra, una línea por verso. Reproduce el audio y pulsa «Marcar siguiente línea» cuando empiece cada verso.</p></div><label>Letra completa<textarea id="song-lyrics" rows="6" placeholder="Verso uno&#10;Verso dos&#10;Estribillo…"></textarea></label><div class="lyric-tools"><audio id="lyric-preview" controls></audio><button class="secondary-button" type="button" id="mark-lyric">＋ Marcar siguiente línea</button><button class="secondary-button" type="button" id="reset-lyric-times">Reiniciar marcas</button></div><div id="lyric-timing-list" class="timing-list">Aún no hay líneas marcadas.</div></div>
+     <div class="form-actions"><p class="helper-text">Todos pueden subir canciones. Solo los administradores pueden editar o eliminarlas.</p><button class="primary-button" type="submit">Subir a la biblioteca</button></div>
     </form>
    </section>
-   <section id="profile-view" class="view hidden"><div class="section-heading"><div><span class="eyebrow">TU IDENTIDAD</span><h2>Mi perfil</h2></div></div><form id="profile-form" class="form-card"><label>Tu nombre visible<input id="profile-name" maxlength="30" minlength="2" required/></label><p class="helper-text">Este nombre se mostrará al grupo. Cambiarlo no cambia tus permisos ni tu identidad de usuario.</p><p id="profile-role" class="count-pill">Miembro</p><div class="form-actions"><span></span><button class="primary-button" id="save-profile" type="submit">Guardar nombre</button></div></form></section>
+   <section id="profile-view" class="view hidden"><div class="section-heading"><div><span class="eyebrow">TU IDENTIDAD</span><h2>Mi perfil</h2></div></div><form id="profile-form" class="form-card"><label>Tu nombre visible<input id="profile-name" maxlength="30" minlength="2" required/></label><p class="helper-text">Este nombre se mostrará al grupo. Cambiarlo no cambia tus permisos.</p><p id="profile-role" class="count-pill">Miembro</p><div class="form-actions"><span></span><button class="primary-button" id="save-profile" type="submit">Guardar nombre</button></div></form></section>
   </div>
  </main>
 </div>
-<footer class="player-bar"><div class="now-playing"><div class="mini-cover" id="player-cover">♫</div><div><strong id="player-title">Ninguna canción</strong><span id="player-artist">Tu biblioteca musical</span></div></div><div class="player-controls"><div class="control-buttons"><button id="prev-button" aria-label="Anterior">◂</button><button id="play-button" class="play-button" aria-label="Reproducir">▶</button><button id="next-button" aria-label="Siguiente">▸</button></div><div class="progress-row"><span id="current-time">0:00</span><input id="progress" type="range" min="0" max="100" value="0"/><span id="duration">0:00</span></div></div><div class="player-extra"><span>♫</span><span>Reproductor</span></div><audio id="audio-player"></audio></footer>
+<footer class="player-bar"><div class="now-playing"><div class="mini-cover" id="player-cover">♫</div><div><strong id="player-title">Ninguna canción</strong><span id="player-artist">Tu biblioteca musical</span></div></div><div class="player-controls"><div class="control-buttons"><button id="prev-button" aria-label="Anterior">◂</button><button id="play-button" class="play-button" aria-label="Reproducir">▶</button><button id="next-button" aria-label="Siguiente">▸</button><button id="expand-player" aria-label="Ampliar reproductor" title="Abrir reproductor grande">⛶</button></div><div class="progress-row"><span id="current-time">0:00</span><input id="progress" type="range" min="0" max="100" value="0"/><span id="duration">0:00</span></div></div><div class="player-extra"><label class="volume-control" title="Tu volumen personal">🔊 <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8"/></label></div><audio id="audio-player"></audio></footer>
+
+<div id="full-player" class="full-player hidden">
+ <button id="close-full-player" class="close-full-player" aria-label="Cerrar">✕</button>
+ <div class="full-player-layout">
+  <div class="full-art-wrap"><div class="full-art" id="full-cover">♫</div><div class="full-track-info"><span class="eyebrow">REPRODUCIENDO</span><h2 id="full-title">Ninguna canción</h2><p id="full-artist">—</p></div><div class="full-controls"><div class="control-buttons"><button id="full-prev">◂</button><button id="full-play" class="play-button">▶</button><button id="full-next">▸</button></div><div class="progress-row"><span id="full-current">0:00</span><input id="full-progress" type="range" min="0" max="100" value="0"/><span id="full-duration">0:00</span></div><label class="volume-control">🔊 <input id="full-volume" type="range" min="0" max="1" step="0.01" value="0.8"/></label></div></div>
+  <div class="karaoke-panel"><span class="eyebrow">LETRA SINCRONIZADA</span><div id="karaoke-lines" class="karaoke-lines"><p class="karaoke-placeholder">Cuando la canción tenga letra sincronizada, aparecerá aquí.</p></div></div>
+ </div>
+</div>
 <div id="toast" class="toast hidden" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script>
 </body></html>
