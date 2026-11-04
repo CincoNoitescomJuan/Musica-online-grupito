@@ -12,11 +12,4 @@
 ## Nota sobre portadas
 Las portadas existentes se mostrarán si la canción o campaña tiene una imagen subida y almacenada en el bucket privado `roleplay-covers`. Las canciones que se subieron sin imagen seguirán mostrando la portada genérica hasta que se editen o se vuelvan a subir con portada.
 
-## Comprobación de la reproducción
-Prueba con dos navegadores:
-- El anfitrión crea la sala y selecciona una canción.
-- El segundo navegador entra con el código.
-- Deja sonar la canción más de 30 segundos.
-- Comprueba que no se pausa sola y que ambos reproductores avanzan juntos.
-
 No se requiere ninguna migración adicional de Supabase para esta versión.
