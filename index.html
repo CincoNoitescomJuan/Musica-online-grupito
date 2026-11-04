@@ -11,6 +11,7 @@
   <button class="nav-item" data-view="rooms">◉ <span>Salas</span></button>
   <button class="nav-item" data-view="upload">＋ <span>Subir canción</span></button>
   <button class="nav-item" data-view="profile">♙ <span>Mi perfil</span></button>
+  <button class="nav-item admin-nav hidden" data-view="admin">⚙ <span>Administración</span></button>
   <div class="sidebar-bottom"><div class="connection-dot" id="connection-dot"></div><span id="connection-label">Conectando…</span></div>
  </aside>
  <main class="main-content">
@@ -61,6 +62,25 @@
     </form>
    </section>
    <section id="profile-view" class="view hidden"><div class="section-heading"><div><span class="eyebrow">TU IDENTIDAD</span><h2>Mi perfil</h2></div></div><form id="profile-form" class="form-card"><label>Tu nombre visible<input id="profile-name" maxlength="30" minlength="2" required/></label><p class="helper-text">Este nombre se mostrará al grupo. Cambiarlo no cambia tus permisos.</p><p id="profile-role" class="count-pill">Miembro</p><div class="form-actions"><span></span><button class="primary-button" id="save-profile" type="submit">Guardar nombre</button></div></form></section>
+   <section id="admin-view" class="view hidden">
+    <div class="admin-welcome"><div><span class="eyebrow">CENTRO DE CONTROL</span><h2>Administración</h2><p>Gestiona la biblioteca, las campañas, los miembros y las salas.</p></div><span class="admin-crown">♛</span></div>
+    <div class="admin-stats">
+     <div class="admin-stat"><span>CANCIONES</span><strong id="admin-song-count">0</strong></div>
+     <div class="admin-stat"><span>CAMPAÑAS</span><strong id="admin-campaign-count">0</strong></div>
+     <div class="admin-stat"><span>USUARIOS</span><strong id="admin-user-count">0</strong></div>
+     <div class="admin-stat"><span>SALAS</span><strong id="admin-room-count">0</strong></div>
+    </div>
+    <div class="admin-tabs">
+     <button class="admin-tab active" data-admin-tab="songs">♫ Canciones</button>
+     <button class="admin-tab" data-admin-tab="campaigns">▣ Campañas</button>
+     <button class="admin-tab" data-admin-tab="users">♙ Usuarios</button>
+     <button class="admin-tab" data-admin-tab="rooms">◉ Salas</button>
+    </div>
+    <div id="admin-songs-panel" class="admin-panel"><div class="admin-panel-head"><div><h3>Biblioteca musical</h3><p>Editar metadatos, letras y portadas; eliminar canciones.</p></div><input id="admin-song-search" placeholder="Buscar canción…"/></div><div id="admin-songs-list" class="admin-list"></div></div>
+    <div id="admin-campaigns-panel" class="admin-panel hidden"><div class="admin-panel-head"><div><h3>Campañas</h3><p>Editar carpetas y eliminar campañas.</p></div></div><div id="admin-campaigns-list" class="admin-list"></div></div>
+    <div id="admin-users-panel" class="admin-panel hidden"><div class="admin-panel-head"><div><h3>Miembros</h3><p>Cambiar nombres y permisos. No puedes modificar tu propia cuenta desde aquí.</p></div><input id="admin-user-search" placeholder="Buscar usuario…"/></div><div id="admin-users-list" class="admin-list"></div></div>
+    <div id="admin-rooms-panel" class="admin-panel hidden"><div class="admin-panel-head"><div><h3>Salas de escucha</h3><p>Consultar y cerrar salas creadas por el grupo.</p></div></div><div id="admin-rooms-list" class="admin-list"></div></div>
+   </section>
   </div>
  </main>
 </div>
@@ -73,6 +93,7 @@
   <div class="karaoke-panel"><span class="eyebrow">LETRA SINCRONIZADA</span><div id="karaoke-lines" class="karaoke-lines"><p class="karaoke-placeholder">Cuando la canción tenga letra sincronizada, aparecerá aquí.</p></div></div>
  </div>
 </div>
+<div id="admin-modal" class="admin-modal hidden"><div class="admin-modal-card"><button id="admin-modal-close" class="admin-modal-close">×</button><div id="admin-modal-content"></div></div></div>
 <div id="toast" class="toast hidden" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script>
 </body></html>
