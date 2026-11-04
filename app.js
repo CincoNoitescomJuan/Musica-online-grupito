@@ -2,7 +2,7 @@ const CONFIG=window.ROLEPLAY_MUSIC_CONFIG||{},sb=window.supabase,$=id=>document.
 let db=null,session=null,profile=null,songs=[],campaigns=[],currentIndex=-1,currentCampaignFilter=null,lyricLines=[],timedLyrics=[];
 const localVolume=Number(localStorage.getItem('roleplay_music_volume')??'0.8');
 function toast(m,e=false){const x=$('toast');x.textContent=m;x.classList.remove('hidden','error');if(e)x.classList.add('error');clearTimeout(toast.t);toast.t=setTimeout(()=>x.classList.add('hidden'),4500);}
-function showView(v){['library','campaigns','rooms','upload','profile'].forEach(x=>$(x+'-view').classList.toggle('hidden',x!==v));document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===v));$('page-title').textContent=({library:'Biblioteca musical',campaigns:'Campañas',rooms:'Salas de escucha',upload:'Añadir canción',profile:'Mi perfil'})[v];}
+function showView(v){['library','campaigns','rooms','upload','profile','admin'].forEach(x=>$(x+'-view').classList.toggle('hidden',x!==v));document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===v));$('page-title').textContent=({library:'Biblioteca musical',campaigns:'Campañas',rooms:'Salas de escucha',upload:'Añadir canción',profile:'Mi perfil',admin:'Administración'})[v];}
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{currentCampaignFilter=null;showView(b.dataset.view);if(b.dataset.view==='library')renderSongs();});
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>showView(b.dataset.go));
 function setConnection(ok,label){$('connection-dot').classList.toggle('offline',!ok);$('connection-label').textContent=label;}
@@ -210,3 +210,116 @@ playSong=function(i){
 $('next-button').onclick=$('full-next').onclick=()=>{if(activeRoom){roomNext(1);return;}localNext(1);};
 $('prev-button').onclick=$('full-prev').onclick=()=>{if(activeRoom){roomNext(-1);return;}localNext(-1);};
 audio.onended=()=>{if(activeRoom){roomNext(1);}else localNext(1);};
+
+
+// ===== PANEL DE ADMINISTRACIÓN =====
+let adminUsers=[],adminRooms=[];
+function isAdmin(){return !!profile&&profile.role==='admin';}
+const baseUpdateIdentity=updateIdentity;
+updateIdentity=function(){baseUpdateIdentity();document.querySelectorAll('.admin-nav').forEach(x=>x.classList.toggle('hidden',!isAdmin()));if(isAdmin())refreshAdmin().catch(e=>toast('Panel admin: '+e.message,true));};
+const baseLoadAll=loadAll;
+loadAll=async function(){await baseLoadAll();if(isAdmin())await refreshAdmin();};
+const baseShowView=showView;
+showView=function(v){if(v==='admin'&&!isAdmin()){toast('No tienes permisos de administrador.',true);return;}baseShowView(v);if(v==='admin')refreshAdmin().catch(e=>toast(e.message,true));};
+document.querySelectorAll('[data-admin-tab]').forEach(btn=>btn.addEventListener('click',()=>{
+ document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.toggle('active',x===btn));
+ ['songs','campaigns','users','rooms'].forEach(k=>$('admin-'+k+'-panel').classList.toggle('hidden',k!==btn.dataset.adminTab));
+}));
+async function refreshAdmin(){
+ if(!isAdmin())return;
+ const [u,r]=await Promise.all([
+  db.from('profiles').select('id,username,role,created_at').order('created_at',{ascending:false}),
+  db.from('rooms').select('id,name,room_code,campaign_id,created_by,created_at').order('created_at',{ascending:false})
+ ]);
+ if(u.error)throw u.error;if(r.error)throw r.error;
+ adminUsers=u.data||[];adminRooms=r.data||[];
+ $('admin-song-count').textContent=songs.length;$('admin-campaign-count').textContent=campaigns.length;$('admin-user-count').textContent=adminUsers.length;$('admin-room-count').textContent=adminRooms.length;
+ renderAdminSongs();renderAdminCampaigns();renderAdminUsers();renderAdminRooms();
+}
+function adminOpenModal(title,body){
+ $('admin-modal-content').innerHTML=`<span class="eyebrow">ADMINISTRACIÓN</span><h2>${escapeHtml(title)}</h2>${body}`;
+ $('admin-modal').classList.remove('hidden');
+}
+function adminCloseModal(){$('admin-modal').classList.add('hidden');$('admin-modal-content').innerHTML='';}
+$('admin-modal-close').onclick=adminCloseModal;
+$('admin-modal').addEventListener('click',e=>{if(e.target===$('admin-modal'))adminCloseModal();});
+function renderAdminSongs(){
+ const q=($('admin-song-search')?.value||'').toLowerCase(),box=$('admin-songs-list');if(!box)return;box.innerHTML='';
+ const list=songs.filter(s=>[s.title,s.artist,s.description].join(' ').toLowerCase().includes(q));
+ if(!list.length){box.innerHTML='<div class="empty-state">No hay canciones que coincidan.</div>';return;}
+ list.forEach(s=>{
+  const row=document.createElement('div');row.className='admin-row';
+  const art=document.createElement('div');art.className='admin-row-cover';if(s.coverUrl)art.style.backgroundImage=`url("${s.coverUrl}")`;else art.textContent='♫';
+  const info=document.createElement('div');info.className='admin-row-info';const strong=document.createElement('strong');strong.textContent=s.title;const small=document.createElement('small');small.textContent=[s.artist,campaigns.find(c=>c.id===s.campaign_id)?.name||'Sin campaña'].filter(Boolean).join(' · ');info.append(strong,small);
+  const actions=document.createElement('div');actions.className='admin-row-actions';const edit=document.createElement('button');edit.className='secondary-button';edit.textContent='Editar';edit.onclick=()=>editSongAdmin(s);const del=document.createElement('button');del.className='danger-button';del.textContent='Eliminar';del.onclick=()=>deleteSong(s);actions.append(edit,del);row.append(art,info,actions);box.append(row);
+ });
+}
+function editSongAdmin(s){
+ const opts='<option value="">Sin campaña</option>'+campaigns.map(c=>`<option value="${c.id}" ${c.id===s.campaign_id?'selected':''}>${escapeHtml(c.name)}</option>`).join('');
+ adminOpenModal('Editar canción',`<form id="admin-song-edit" class="admin-edit-form">
+  <label>Título<input id="ae-title" maxlength="90" required value="${escapeHtml(s.title)}"></label>
+  <label>Artista / personaje<input id="ae-artist" maxlength="90" value="${escapeHtml(s.artist||'')}"></label>
+  <label>Campaña<select id="ae-campaign">${opts}</select></label>
+  <label>Descripción<textarea id="ae-description" rows="3">${escapeHtml(s.description||'')}</textarea></label>
+  <label>Letra<textarea id="ae-lyrics" rows="6">${escapeHtml(s.lyrics||'')}</textarea></label>
+  <label>Marcas karaoke (JSON)<textarea id="ae-timed" rows="4">${escapeHtml(JSON.stringify(s.lyrics_timed||[],null,2))}</textarea><small>Formato: [{"time": 1.25, "text": "Verso"}]</small></label>
+  <label>Reemplazar portada (opcional)<input id="ae-cover" type="file" accept="image/png,image/jpeg,image/webp"></label>
+  <label>Reemplazar audio (opcional)<input id="ae-audio" type="file" accept="audio/*"></label>
+  <div class="admin-modal-actions"><button type="button" class="secondary-button" id="ae-cancel">Cancelar</button><button class="primary-button" type="submit">Guardar cambios</button></div>
+ </form>`);
+ $('ae-cancel').onclick=adminCloseModal;
+ $('admin-song-edit').onsubmit=async e=>{
+  e.preventDefault();const btn=e.submitter;btn.disabled=true;let newCover=null,newAudio=null;
+  try{
+   let timed=JSON.parse($('ae-timed').value||'[]');if(!Array.isArray(timed))throw Error('Las marcas karaoke deben ser una lista JSON.');
+   const cf=$('ae-cover').files[0],af=$('ae-audio').files[0],id=crypto.randomUUID();
+   if(cf){if(cf.size>5*1024*1024)throw Error('La portada supera 5 MB.');newCover=`${session.user.id}/admin-cover-${id}.${cf.name.split('.').pop().toLowerCase()}`;let up=await db.storage.from('roleplay-covers').upload(newCover,cf,{contentType:cf.type});if(up.error)throw up.error;}
+   if(af){if(af.size>50*1024*1024)throw Error('El audio supera 50 MB.');newAudio=`${session.user.id}/admin-audio-${id}.${af.name.split('.').pop().toLowerCase()}`;let up=await db.storage.from('roleplay-audio').upload(newAudio,af,{contentType:af.type||'audio/mpeg'});if(up.error)throw up.error;}
+   const campId=$('ae-campaign').value||null,camp=campaigns.find(c=>c.id===campId);
+   const patch={title:$('ae-title').value.trim(),artist:$('ae-artist').value.trim()||null,campaign:camp?.name||null,campaign_id:campId,description:$('ae-description').value.trim()||null,lyrics:$('ae-lyrics').value,lyrics_timed:timed};
+   if(newCover)patch.cover_path=newCover;if(newAudio)patch.audio_path=newAudio;
+   const {error}=await db.from('songs').update(patch).eq('id',s.id);if(error)throw error;
+   if(newCover&&s.cover_path)await db.storage.from('roleplay-covers').remove([s.cover_path]);
+   if(newAudio&&s.audio_path)await db.storage.from('roleplay-audio').remove([s.audio_path]);
+   adminCloseModal();await loadAll();toast('Canción actualizada.');
+  }catch(err){if(newCover)await db.storage.from('roleplay-covers').remove([newCover]);if(newAudio)await db.storage.from('roleplay-audio').remove([newAudio]);toast(err.message||'No se pudo guardar.',true);}
+  finally{btn.disabled=false;}
+ };
+}
+function renderAdminCampaigns(){
+ const box=$('admin-campaigns-list');if(!box)return;box.innerHTML='';
+ campaigns.forEach(c=>{const row=document.createElement('div');row.className='admin-row';const art=document.createElement('div');art.className='admin-row-cover';if(c.coverUrl)art.style.backgroundImage=`url("${c.coverUrl}")`;else art.textContent='▣';const info=document.createElement('div');info.className='admin-row-info';const st=document.createElement('strong');st.textContent=c.name;const sm=document.createElement('small');sm.textContent=`${songs.filter(s=>s.campaign_id===c.id).length} canciones`;info.append(st,sm);const actions=document.createElement('div');actions.className='admin-row-actions';const edit=document.createElement('button');edit.className='secondary-button';edit.textContent='Editar';edit.onclick=()=>editCampaignAdmin(c);const del=document.createElement('button');del.className='danger-button';del.textContent='Eliminar';del.onclick=()=>deleteCampaignAdmin(c);actions.append(edit,del);row.append(art,info,actions);box.append(row);});
+ if(!campaigns.length)box.innerHTML='<div class="empty-state">No hay campañas.</div>';
+}
+function editCampaignAdmin(c){
+ adminOpenModal('Editar campaña',`<form id="admin-campaign-edit" class="admin-edit-form"><label>Nombre<input id="ac-name" maxlength="90" required value="${escapeHtml(c.name)}"></label><label>Descripción<textarea id="ac-description" rows="3">${escapeHtml(c.description||'')}</textarea></label><label>Reemplazar portada (opcional)<input id="ac-cover" type="file" accept="image/png,image/jpeg,image/webp"></label><div class="admin-modal-actions"><button type="button" class="secondary-button" id="ac-cancel">Cancelar</button><button class="primary-button" type="submit">Guardar cambios</button></div></form>`);
+ $('ac-cancel').onclick=adminCloseModal;$('admin-campaign-edit').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;let path=null;try{const file=$('ac-cover').files[0];if(file){if(file.size>5*1024*1024)throw Error('La portada supera 5 MB.');path=`${session.user.id}/admin-campaign-${crypto.randomUUID()}.${file.name.split('.').pop().toLowerCase()}`;const up=await db.storage.from('roleplay-covers').upload(path,file,{contentType:file.type});if(up.error)throw up.error;}const patch={name:$('ac-name').value.trim(),description:$('ac-description').value.trim()||null};if(path)patch.cover_path=path;const {error}=await db.from('campaigns').update(patch).eq('id',c.id);if(error)throw error;if(path&&c.cover_path)await db.storage.from('roleplay-covers').remove([c.cover_path]);adminCloseModal();await loadAll();toast('Campaña actualizada.');}catch(err){if(path)await db.storage.from('roleplay-covers').remove([path]);toast(err.message,true);}finally{btn.disabled=false;}};
+}
+async function deleteCampaignAdmin(c){
+ if(!confirm(`¿Eliminar la campaña "${c.name}"? Las canciones se conservarán, pero quedarán sin campaña.`))return;
+ try{const {error}=await db.from('campaigns').delete().eq('id',c.id);if(error)throw error;if(c.cover_path)await db.storage.from('roleplay-covers').remove([c.cover_path]);await loadAll();toast('Campaña eliminada.');}catch(e){toast(e.message,true);}
+}
+function renderAdminUsers(){
+ const q=($('admin-user-search')?.value||'').toLowerCase(),box=$('admin-users-list');if(!box)return;box.innerHTML='';
+ adminUsers.filter(u=>u.username.toLowerCase().includes(q)).forEach(u=>{
+  const row=document.createElement('div');row.className='admin-row user-admin-row';const avatar=document.createElement('div');avatar.className='admin-avatar';avatar.textContent=(u.username||'?').slice(0,1).toUpperCase();const info=document.createElement('div');info.className='admin-row-info';const name=document.createElement('strong');name.textContent=u.username;const small=document.createElement('small');small.textContent=u.id===session.user.id?'Tu cuenta · '+u.role:'Miembro · '+u.role;info.append(name,small);const actions=document.createElement('div');actions.className='admin-row-actions';
+  if(u.id===session.user.id){const tag=document.createElement('span');tag.className='admin-self-tag';tag.textContent='Tú';actions.append(tag);}else{const edit=document.createElement('button');edit.className='secondary-button';edit.textContent='Gestionar';edit.onclick=()=>editUserAdmin(u);const kick=document.createElement('button');kick.className='danger-button';kick.textContent='Expulsar de salas';kick.onclick=()=>kickUserFromRooms(u);actions.append(edit,kick);}
+  row.append(avatar,info,actions);box.append(row);
+ });
+ if(!box.children.length)box.innerHTML='<div class="empty-state">No hay usuarios que coincidan.</div>';
+}
+function editUserAdmin(u){
+ adminOpenModal('Gestionar usuario',`<form id="admin-user-edit" class="admin-edit-form"><label>Nombre visible<input id="au-name" maxlength="30" minlength="2" required value="${escapeHtml(u.username)}"></label><label>Permisos<select id="au-role"><option value="member" ${u.role==='member'?'selected':''}>Miembro</option><option value="admin" ${u.role==='admin'?'selected':''}>Administrador</option></select></label><p class="helper-text">Los cambios de rol se aplican en la base de datos. No compartas permisos de administrador con personas de confianza dudosa.</p><div class="admin-modal-actions"><button type="button" class="secondary-button" id="au-cancel">Cancelar</button><button class="primary-button" type="submit">Guardar usuario</button></div></form>`);
+ $('au-cancel').onclick=adminCloseModal;$('admin-user-edit').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;try{const {error}=await db.rpc('admin_update_profile',{p_user_id:u.id,p_username:$('au-name').value.trim(),p_role:$('au-role').value});if(error)throw error;adminCloseModal();await refreshAdmin();toast('Usuario actualizado.');}catch(err){toast(err.message,true);}finally{btn.disabled=false;}};
+}
+async function kickUserFromRooms(u){
+ if(!confirm(`¿Expulsar a ${u.username} de todas las salas?`))return;
+ try{const {error}=await db.from('room_members').delete().eq('user_id',u.id);if(error)throw error;await refreshAdmin();toast('Usuario expulsado de sus salas actuales.');}catch(e){toast(e.message,true);}
+}
+function renderAdminRooms(){
+ const box=$('admin-rooms-list');if(!box)return;box.innerHTML='';
+ adminRooms.forEach(r=>{const row=document.createElement('div');row.className='admin-row';const avatar=document.createElement('div');avatar.className='admin-avatar';avatar.textContent='◉';const info=document.createElement('div');info.className='admin-row-info';const name=document.createElement('strong');name.textContent=r.name;const camp=campaigns.find(c=>c.id===r.campaign_id);const small=document.createElement('small');small.textContent=`Código ${r.room_code} · ${camp?camp.name:'Sala general'}`;info.append(name,small);const actions=document.createElement('div');actions.className='admin-row-actions';const del=document.createElement('button');del.className='danger-button';del.textContent='Cerrar sala';del.onclick=async()=>{if(!confirm(`¿Cerrar la sala "${r.name}"?`))return;try{const {error}=await db.from('rooms').delete().eq('id',r.id);if(error)throw error;await refreshAdmin();toast('Sala cerrada.');}catch(e){toast(e.message,true);}};actions.append(del);row.append(avatar,info,actions);box.append(row);});
+ if(!adminRooms.length)box.innerHTML='<div class="empty-state">No hay salas creadas.</div>';
+}
+$('admin-song-search').addEventListener('input',renderAdminSongs);
+$('admin-user-search').addEventListener('input',renderAdminUsers);
