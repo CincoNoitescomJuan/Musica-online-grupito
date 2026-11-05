@@ -213,3 +213,27 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opa
 .toast{backdrop-filter:blur(20px);box-shadow:0 15px 45px rgba(0,0,0,.4)}
 @media(max-width:760px){.song-grid,.campaign-grid{gap:11px}.song-card{padding:9px;border-radius:14px}.song-card-actions{grid-template-columns:1fr 1fr;gap:5px}.song-card-actions button{font-size:9px;padding:8px 4px}.song-card-actions .download-button{grid-column:1/-1}.hero-card{box-shadow:0 15px 40px rgba(0,0,0,.24)}.sidebar{background:rgba(14,13,23,.94);backdrop-filter:blur(24px);border-top-color:rgba(190,163,232,.22)}.player-bar{box-shadow:0 -10px 35px rgba(0,0,0,.35)}.full-download-button{max-width:none}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+
+/* ROLEPLAY MUSIC 4.5.1 — reproductor móvil y formularios seguros */
+#player-cover,#player-title,#player-artist{cursor:pointer}
+#player-cover:focus-visible,#player-title:focus-visible{outline:2px solid var(--purple);outline-offset:3px;border-radius:6px}
+.admin-modal{cursor:default}
+.admin-modal-card{cursor:auto}
+@media(max-width:760px){
+ .player-bar #expand-player{display:inline-flex!important;align-items:center;justify-content:center;min-width:30px;min-height:30px;margin-left:0}
+ .player-bar .control-buttons{display:flex;align-items:center;gap:5px}
+ .player-bar .control-buttons button{min-width:27px;min-height:29px}
+ .now-playing{cursor:pointer;min-width:0}
+ .now-playing>div:last-child{min-width:0}
+ .now-playing strong,.now-playing span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .full-player{position:fixed;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-top:58px;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+ .full-player-layout{display:flex;flex-direction:column;align-items:stretch;min-height:0;gap:22px}
+ .full-art-wrap{width:100%;gap:14px}
+ .full-art{width:min(58vw,230px);flex:none}
+ .full-track-info h2{font-size:23px}
+ .full-controls{width:100%;max-width:none}
+ .karaoke-panel{height:42vh;min-height:220px;max-height:440px;flex:none;width:100%;border:1px solid rgba(190,163,232,.15);border-radius:16px;padding:16px}
+ .karaoke-lines{padding:5px 8px 24px 0}
+ .close-full-player{position:fixed;z-index:5;top:calc(10px + env(safe-area-inset-top));right:12px}
+}
