@@ -698,3 +698,63 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
   audio.addEventListener('ratechange',updateKaraoke);
   audio.addEventListener('timeupdate',updateKaraoke);
 })();
+
+/* ROLEPLAY MUSIC 4.9 - renovación de audio y recuperación de reproducción */
+(function(){
+  const playSongBeforeFreshAudio = playSong;
+  let playRequestId = 0;
+  let recoveryInProgress = false;
+  const audioUrlCache = new Map();
+  async function freshAudioUrl(song, force=false){
+    if(!song?.audio_path) throw new Error('No se encuentra el archivo de audio.');
+    const cached = audioUrlCache.get(song.id);
+    if(!force && cached && cached.expiresAt > Date.now() + 3*60*1000) return cached.url;
+    const {data,error} = await db.storage.from('roleplay-audio').createSignedUrl(song.audio_path, 3600);
+    if(error) throw error;
+    audioUrlCache.set(song.id,{url:data.signedUrl,expiresAt:Date.now()+55*60*1000});
+    song.audioUrl=data.signedUrl;
+    return data.signedUrl;
+  }
+  playSong = async function(index){
+    if(activeRoom){ return playSongBeforeFreshAudio(index); }
+    if(index<0 || index>=songs.length) return;
+    const request=++playRequestId;
+    const song=songs[index];
+    try{
+      await freshAudioUrl(song, true);
+      if(request!==playRequestId) return;
+      return playSongBeforeFreshAudio(index);
+    }catch(error){
+      console.error('No se pudo preparar el audio:',error);
+      if(request===playRequestId) toast('No se pudo cargar esta canción. Comprueba tu conexión e inténtalo de nuevo.',true);
+    }
+  };
+  // Si el enlace caduca o el servidor corta la descarga durante una reproducción,
+  // solicita un enlace nuevo y reintenta una sola vez para esa canción.
+  audio.addEventListener('error',async()=>{
+    const song=activeRoom ? currentRoomSong() : songs[currentIndex];
+    if(!song || recoveryInProgress || !song.audio_path) return;
+    const failedSrc=audio.currentSrc || audio.src;
+    if(audio.dataset.recoveredSrc===failedSrc) return;
+    recoveryInProgress=true;
+    try{
+      const url=await freshAudioUrl(song,true);
+      if((activeRoom ? currentRoomSong()?.id : songs[currentIndex]?.id)!==song.id) return;
+      audio.dataset.recoveredSrc=failedSrc;
+      const position=Number(audio.currentTime)||0;
+      audio.src=url;
+      audio.load();
+      await new Promise((resolve,reject)=>{
+        const ok=()=>{cleanup();resolve();};
+        const bad=()=>{cleanup();reject(new Error('El audio sigue sin estar disponible.'));};
+        const cleanup=()=>{audio.removeEventListener('canplay',ok);audio.removeEventListener('error',bad);};
+        audio.addEventListener('canplay',ok,{once:true});audio.addEventListener('error',bad,{once:true});
+      });
+      if(position>0 && Number.isFinite(audio.duration)) audio.currentTime=Math.min(position,audio.duration);
+      await audio.play();
+    }catch(error){console.error('Falló la recuperación del audio:',error);toast('No se ha podido recuperar el audio. Prueba a pasar a la siguiente canción.',true);}
+    finally{recoveryInProgress=false;}
+  });
+  // Evita acumular eventos de error antiguos al cambiar de pista.
+  audio.addEventListener('loadstart',()=>{delete audio.dataset.recoveredSrc;});
+})();
