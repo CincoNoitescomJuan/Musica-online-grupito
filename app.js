@@ -62,7 +62,14 @@ $('next-button').onclick=$('full-next').onclick=()=>{if(songs.length)playSong(cu
 function updateProgress(){const dur=audio.duration||0,cur=audio.currentTime||0;for(const [p,c,d] of [['progress','current-time','duration'],['full-progress','full-current','full-duration']]){$(p).value=dur?cur/dur*100:0;$(c).textContent=fmt(cur);$(d).textContent=fmt(dur);}updateKaraoke();}
 audio.ontimeupdate=updateProgress;audio.onpause=()=>{$('play-button').textContent=$('full-play').textContent='▶';};audio.onplay=()=>{$('play-button').textContent=$('full-play').textContent='Ⅱ';};audio.onended=()=>{if(songs.length)playSong((currentIndex+1)%songs.length);};
 $('progress').oninput=$('full-progress').oninput=e=>{if(audio.duration)audio.currentTime=Number(e.target.value)/100*audio.duration;};
-$('expand-player').onclick=()=>$('full-player').classList.remove('hidden');$('close-full-player').onclick=()=>$('full-player').classList.add('hidden');
+function openFullPlayer(){$('full-player').classList.remove('hidden');document.body.classList.add('full-player-open');}
+function closeFullPlayer(){$('full-player').classList.add('hidden');document.body.classList.remove('full-player-open');}
+$('expand-player').onclick=openFullPlayer;$('close-full-player').onclick=closeFullPlayer;
+// En móvil también se puede abrir el reproductor tocando la carátula o el título.
+$('player-cover').onclick=openFullPlayer;$('player-title').onclick=openFullPlayer;$('player-artist').onclick=openFullPlayer;
+$('player-cover').style.cursor=$('player-title').style.cursor=$('player-artist').style.cursor='pointer';
+$('player-cover').setAttribute('role','button');$('player-title').setAttribute('role','button');$('player-cover').setAttribute('aria-label','Abrir reproductor grande');$('player-title').setAttribute('aria-label','Abrir reproductor grande');
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('admin-modal').classList.contains('hidden'))adminCloseModal();else if(!$('full-player').classList.contains('hidden'))closeFullPlayer();}});
 function renderKaraoke(){const s=songs[currentIndex],box=$('karaoke-lines');if(!s){box.innerHTML='<p class="karaoke-placeholder">Selecciona una canción para ver su letra.</p>';return;}const timed=Array.isArray(s.lyrics_timed)?s.lyrics_timed:[];if(!timed.length){box.innerHTML=(s.lyrics||'').trim()?`<p class="karaoke-placeholder">Esta canción todavía no tiene tiempos marcados. Su letra está guardada, pero necesita sincronización.</p><div class="plain-lyrics">${escapeHtml(s.lyrics||'').replace(/\n/g,'<br>')}</div>`:'<p class="karaoke-placeholder">Esta canción todavía no tiene letra.</p>';return;}box.innerHTML=timed.map((l,i)=>`<p class="karaoke-line" data-kline="${i}">${escapeHtml(l.text)}</p>`).join('');updateKaraoke();}
 function updateKaraoke(){const s=songs[currentIndex];if(!s||!Array.isArray(s.lyrics_timed)||!s.lyrics_timed.length)return;const timed=s.lyrics_timed;let active=-1;for(let i=0;i<timed.length;i++){if(audio.currentTime>=Number(timed[i].time))active=i;else break;}document.querySelectorAll('.karaoke-line').forEach((el,i)=>{el.classList.toggle('current',i===active);el.classList.toggle('past',i<active);el.classList.toggle('upcoming',i>active);if(i===active)el.scrollIntoView({behavior:'smooth',block:'center'});});}
 function init(){if(!sb||!CONFIG.supabaseUrl||!CONFIG.supabaseAnonKey){setConnection(false,'Configura Supabase');return;}db=sb.createClient(CONFIG.supabaseUrl,CONFIG.supabaseAnonKey);db.auth.getSession().then(async({data,error})=>{if(error)throw error;session=data.session;if(session){await loadProfile();updateIdentity();await loadAll();}else{$('identity-panel').classList.remove('hidden');$('app-content').classList.add('hidden');}setConnection(true,'Conectado a Supabase');}).catch(e=>{setConnection(false,'Error de conexión');toast(e.message,true);});db.auth.onAuthStateChange(async(_event,s)=>{session=s;if(session){try{await loadProfile();updateIdentity();await loadAll();}catch(e){toast(e.message,true);}}});}
@@ -290,7 +297,8 @@ function adminOpenModal(title,body){
 }
 function adminCloseModal(){$('admin-modal').classList.add('hidden');$('admin-modal-content').innerHTML='';}
 $('admin-modal-close').onclick=adminCloseModal;
-$('admin-modal').addEventListener('click',e=>{if(e.target===$('admin-modal'))adminCloseModal();});
+// El modal no se cierra al pulsar fuera: evita perder formularios por un toque accidental.
+// Se cierra con Guardar/Cancelar, el botón X o Escape.
 function renderAdminSongs(){
  const q=($('admin-song-search')?.value||'').toLowerCase(),box=$('admin-songs-list');if(!box)return;box.innerHTML='';
  const list=songs.filter(s=>[s.title,s.artist,s.description].join(' ').toLowerCase().includes(q));
@@ -302,7 +310,10 @@ function renderAdminSongs(){
   const actions=document.createElement('div');actions.className='admin-row-actions';const edit=document.createElement('button');edit.className='secondary-button';edit.textContent='Editar';edit.onclick=()=>editSongAdmin(s);const del=document.createElement('button');del.className='danger-button';del.textContent='Eliminar';del.onclick=()=>deleteSong(s);actions.append(edit,del);row.append(art,info,actions);box.append(row);
  });
 }
+function canEditSong(s){return !!session?.user?.id && (profile?.role==='admin' || s?.created_by===session.user.id);}
 function editSongAdmin(s){
+ if(!canEditSong(s)){toast('Solo puedes editar canciones que hayas subido tú.',true);return;}
+ const isOwner=s.created_by===session.user.id && profile?.role!=='admin';
  const opts='<option value="">Sin campaña</option>'+campaigns.map(c=>`<option value="${c.id}" ${c.id===s.campaign_id?'selected':''}>${escapeHtml(c.name)}</option>`).join('');
  adminOpenModal('Editar canción',`<form id="admin-song-edit" class="admin-edit-form">
   <label>Título<input id="ae-title" maxlength="90" required value="${escapeHtml(s.title)}"></label>
@@ -321,8 +332,8 @@ function editSongAdmin(s){
   try{
    let timed=JSON.parse($('ae-timed').value||'[]');if(!Array.isArray(timed))throw Error('Las marcas karaoke deben ser una lista JSON.');
    const cf=$('ae-cover').files[0],af=$('ae-audio').files[0],id=crypto.randomUUID();
-   if(cf){if(cf.size>5*1024*1024)throw Error('La portada supera 5 MB.');newCover=`${session.user.id}/admin-cover-${id}.${cf.name.split('.').pop().toLowerCase()}`;let up=await db.storage.from('roleplay-covers').upload(newCover,cf,{contentType:cf.type});if(up.error)throw up.error;}
-   if(af){if(af.size>50*1024*1024)throw Error('El audio supera 50 MB.');newAudio=`${session.user.id}/admin-audio-${id}.${af.name.split('.').pop().toLowerCase()}`;let up=await db.storage.from('roleplay-audio').upload(newAudio,af,{contentType:af.type||'audio/mpeg'});if(up.error)throw up.error;}
+   if(cf){if(cf.size>5*1024*1024)throw Error('La portada supera 5 MB.');newCover=`${session.user.id}/song-cover-${id}.${cf.name.split('.').pop().toLowerCase()}`;let up=await db.storage.from('roleplay-covers').upload(newCover,cf,{contentType:cf.type});if(up.error)throw up.error;}
+   if(af){if(af.size>50*1024*1024)throw Error('El audio supera 50 MB.');newAudio=`${session.user.id}/song-audio-${id}.${af.name.split('.').pop().toLowerCase()}`;let up=await db.storage.from('roleplay-audio').upload(newAudio,af,{contentType:af.type||'audio/mpeg'});if(up.error)throw up.error;}
    const campId=$('ae-campaign').value||null,camp=campaigns.find(c=>c.id===campId);
    const patch={title:$('ae-title').value.trim(),artist:$('ae-artist').value.trim()||null,campaign:camp?.name||null,campaign_id:campId,description:$('ae-description').value.trim()||null,lyrics:$('ae-lyrics').value,lyrics_timed:timed};
    if(newCover)patch.cover_path=newCover;if(newAudio)patch.audio_path=newAudio;
@@ -468,7 +479,9 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
      const play=document.createElement('button');play.className='primary-button';play.textContent='▶ Escuchar';play.onclick=e=>{e.stopPropagation();playSong(songs.findIndex(s=>s.id===song.id));};
      const add=document.createElement('button');add.className='secondary-button';add.textContent='＋ Cola';add.onclick=e=>{e.stopPropagation();queueAdd(song.id);};
      const download=document.createElement('button');download.className='download-button';download.textContent='↓ Descargar';download.title='Descargar canción';download.onclick=e=>{e.stopPropagation();downloadSong(song,download);};
-     actions.append(play,add,download);card.append(cover,h,p,actions);
+     actions.append(play,add,download);
+     if(canEditSong(song)){const edit=document.createElement('button');edit.className='secondary-button';edit.textContent='✎ Editar';edit.title='Editar esta canción';edit.onclick=e=>{e.stopPropagation();editSongAdmin(song);};actions.append(edit);}
+     card.append(cover,h,p,actions);
      card.onclick=()=>{playSong(songs.findIndex(s=>s.id===song.id));};
      if(profile?.role==='admin'){const del=document.createElement('button');del.className='card-delete';del.textContent='Eliminar';del.onclick=async e=>{e.stopPropagation();await deleteSong(song);};card.append(del);}
      grid.append(card);
@@ -585,4 +598,86 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
  const fullDownload=$('full-download');
  if(fullDownload)fullDownload.onclick=()=>{const song=songs[currentIndex];if(song)downloadSong(song,fullDownload);else toast('Primero reproduce una canción.',true);};
   audio.onended = function(){ if (activeRoom) roomNext(1); else window.nextPersonalTrack(); };
+})();
+
+/* ROLEPLAY MUSIC 4.5.2 - cache de portadas y sincronización karaoke estable */
+(function(){
+  // Reutiliza URLs firmadas mientras sigan vigentes para que las portadas
+  // no reciban una URL nueva cada vez que se refresca la biblioteca.
+  const signedUrlOriginal = signedUrl;
+  const imageUrlCache = new Map();
+  signedUrl = async function(bucket, path){
+    if(!path) return '';
+    const key = `${bucket}:${path}`;
+    const cached = imageUrlCache.get(key);
+    if(cached && cached.expiresAt > Date.now() + 60000) return cached.url;
+    const url = await signedUrlOriginal(bucket, path);
+    imageUrlCache.set(key, {url, expiresAt: Date.now() + 55 * 60 * 1000});
+    return url;
+  };
+
+  // Ordena y valida marcas una vez por canción. La posición siempre se calcula
+  // con currentTime del elemento de audio (reloj de reproducción), no con timers.
+  let karaokeSongId = null;
+  let karaokeActiveIndex = -2;
+  let karaokeRaf = 0;
+  const karaokeCache = new Map();
+  function getTimedLines(song){
+    if(!song) return [];
+    const cached = karaokeCache.get(song.id);
+    if(cached && cached.source === song.lyrics_timed) return cached.lines;
+    const lines = (Array.isArray(song.lyrics_timed) ? song.lyrics_timed : [])
+      .map((line, originalIndex)=>({time:Number(line.time), text:String(line.text ?? ''), originalIndex}))
+      .filter(line=>Number.isFinite(line.time) && line.time >= 0 && line.text.trim())
+      .sort((a,b)=>a.time-b.time || a.originalIndex-b.originalIndex);
+    karaokeCache.set(song.id,{source:song.lyrics_timed,lines});
+    return lines;
+  }
+  const previousKaraokeUpdate = updateKaraoke;
+  updateKaraoke = function(){
+    if(activeRoom){ previousKaraokeUpdate(); return; }
+    const song = songs[currentIndex];
+    const box = $('karaoke-lines');
+    if(!song || !box) return;
+    const lines = getTimedLines(song);
+    if(!lines.length){ previousKaraokeUpdate(); return; }
+    if(karaokeSongId !== song.id){ karaokeSongId=song.id; karaokeActiveIndex=-2; }
+    // Búsqueda binaria: encuentra la última frase cuyo inicio <= tiempo real.
+    const t = Number(audio.currentTime) || 0;
+    let lo=0, hi=lines.length-1, active=-1;
+    while(lo<=hi){
+      const mid=(lo+hi)>>1;
+      if(t + 0.015 >= lines[mid].time){ active=mid; lo=mid+1; }
+      else hi=mid-1;
+    }
+    const nodes=box.querySelectorAll('.karaoke-line');
+    if(nodes.length !== lines.length){
+      box.innerHTML=lines.map((line,i)=>`<p class="karaoke-line" data-kline="${i}">${escapeHtml(line.text)}</p>`).join('');
+    }
+    const currentNodes=box.querySelectorAll('.karaoke-line');
+    currentNodes.forEach((el,i)=>{
+      el.classList.toggle('current',i===active);
+      el.classList.toggle('past',i<active);
+      el.classList.toggle('upcoming',i>active);
+    });
+    if(active !== karaokeActiveIndex){
+      karaokeActiveIndex=active;
+      if(active>=0 && !audio.paused){
+        const activeEl=box.querySelector(`.karaoke-line[data-kline="${active}"]`);
+        if(activeEl) activeEl.scrollIntoView({behavior:'smooth',block:'center'});
+      }
+    }
+  };
+  // timeupdate cubre reproducción normal y segundo plano; rAF hace más fluida
+  // la transición mientras la pestaña está visible. No altera la posición del audio.
+  function karaokeFrame(){
+    if(audio && !audio.paused && !activeRoom){ updateKaraoke(); karaokeRaf=requestAnimationFrame(karaokeFrame); }
+    else karaokeRaf=0;
+  }
+  audio.addEventListener('play',()=>{ if(!karaokeRaf) karaokeRaf=requestAnimationFrame(karaokeFrame); });
+  audio.addEventListener('pause',()=>{ if(karaokeRaf){cancelAnimationFrame(karaokeRaf);karaokeRaf=0;} updateKaraoke(); });
+  audio.addEventListener('seeked',updateKaraoke);
+  audio.addEventListener('loadedmetadata',updateKaraoke);
+  audio.addEventListener('ratechange',updateKaraoke);
+  audio.addEventListener('timeupdate',updateKaraoke);
 })();
