@@ -13,6 +13,27 @@ async function loadProfile(){const {data,error}=await db.from('profiles').select
 $('identity-form').onsubmit=async e=>{e.preventDefault();const name=$('first-name').value.trim();if(name.length<2||name.length>30)return toast('El nombre debe tener entre 2 y 30 caracteres.',true);$('enter-button').disabled=true;try{localStorage.setItem('roleplay_music_username',name);await ensureIdentity();await loadProfile();if(profile.username==='Aventurero'){const {data,error}=await db.from('profiles').update({username:name}).eq('id',session.user.id).select().single();if(!error)profile=data;}updateIdentity();await loadAll();toast(`¡Bienvenido, ${profile.username}!`);}catch(err){toast(err.message,true);}finally{$('enter-button').disabled=false;}};
 $('profile-form').onsubmit=async e=>{e.preventDefault();const username=$('profile-name').value.trim();if(username.length<2||username.length>30)return toast('El nombre debe tener entre 2 y 30 caracteres.',true);$('save-profile').disabled=true;try{const {data,error}=await db.from('profiles').update({username}).eq('id',session.user.id).select().single();if(error)throw error;profile=data;localStorage.setItem('roleplay_music_username',username);updateIdentity();toast('Nombre actualizado.');}catch(err){toast(err.message,true);}finally{$('save-profile').disabled=false;}};
 async function signedUrl(bucket,path){if(!path)return'';const {data,error}=await db.storage.from(bucket).createSignedUrl(path,3600);if(error)throw error;return data.signedUrl;}
+function safeDownloadName(value){return String(value||'cancion').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 _.-]/g,'').trim().replace(/[ .]+/g,'_').slice(0,90)||'cancion';}
+async function downloadSong(song,button){
+ if(!song?.audio_path)return toast('No se encuentra el archivo de audio.',true);
+ const original=button?.textContent;
+ if(button){button.disabled=true;button.textContent='Preparando…';}
+ try{
+   const ext=(String(song.audio_path).split('.').pop()||'mp3').split('?')[0].replace(/[^a-zA-Z0-9]/g,'')||'mp3';
+   const filename=`${safeDownloadName(song.title)}${song.artist?' - '+safeDownloadName(song.artist):''}.${ext}`;
+   const {data,error}=await db.storage.from('roleplay-audio').createSignedUrl(song.audio_path,120,{download:filename});
+   if(error)throw error;
+   const response=await fetch(data.signedUrl);
+   if(!response.ok)throw new Error('No se pudo descargar el audio. Inténtalo de nuevo.');
+   const blob=await response.blob();
+   const objectUrl=URL.createObjectURL(blob);
+   const link=document.createElement('a');link.href=objectUrl;link.download=filename;link.style.display='none';document.body.appendChild(link);link.click();link.remove();
+   setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);
+   toast('Descarga iniciada.');
+ }catch(err){console.error('Download failed',err);toast(err.message||'No se pudo descargar la canción.',true);}
+ finally{if(button){button.disabled=false;button.textContent=original||'↓ Descargar';}}
+}
+
 async function loadAll(){await Promise.all([refreshCampaigns(),refreshSongs()]);}
 async function refreshCampaigns(){const {data,error}=await db.from('campaigns').select('id,name,description,cover_path,created_by,created_at').order('name');if(error)throw error;campaigns=await Promise.all((data||[]).map(async c=>({...c,coverUrl:await signedUrl('roleplay-covers',c.cover_path)})));renderCampaigns();populateCampaignSelect();}
 async function refreshSongs(){const {data,error}=await db.from('songs').select('id,title,artist,campaign,campaign_id,description,lyrics,lyrics_timed,audio_path,cover_path,created_by,created_at').order('created_at',{ascending:false});if(error)throw error;songs=await Promise.all((data||[]).map(async s=>({...s,audioUrl:await signedUrl('roleplay-audio',s.audio_path),coverUrl:await signedUrl('roleplay-covers',s.cover_path)})));renderSongs();}
@@ -446,7 +467,8 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
      const actions=document.createElement('div');actions.className='song-card-actions';
      const play=document.createElement('button');play.className='primary-button';play.textContent='▶ Escuchar';play.onclick=e=>{e.stopPropagation();playSong(songs.findIndex(s=>s.id===song.id));};
      const add=document.createElement('button');add.className='secondary-button';add.textContent='＋ Cola';add.onclick=e=>{e.stopPropagation();queueAdd(song.id);};
-     actions.append(play,add);card.append(cover,h,p,actions);
+     const download=document.createElement('button');download.className='download-button';download.textContent='↓ Descargar';download.title='Descargar canción';download.onclick=e=>{e.stopPropagation();downloadSong(song,download);};
+     actions.append(play,add,download);card.append(cover,h,p,actions);
      card.onclick=()=>{playSong(songs.findIndex(s=>s.id===song.id));};
      if(profile?.role==='admin'){const del=document.createElement('button');del.className='card-delete';del.textContent='Eliminar';del.onclick=async e=>{e.stopPropagation();await deleteSong(song);};card.append(del);}
      grid.append(card);
@@ -560,5 +582,7 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
   };
   $('prev-button').onclick = $('full-prev').onclick = window.previousPersonalTrack;
   $('next-button').onclick = $('full-next').onclick = window.nextPersonalTrack;
+ const fullDownload=$('full-download');
+ if(fullDownload)fullDownload.onclick=()=>{const song=songs[currentIndex];if(song)downloadSong(song,fullDownload);else toast('Primero reproduce una canción.',true);};
   audio.onended = function(){ if (activeRoom) roomNext(1); else window.nextPersonalTrack(); };
 })();
