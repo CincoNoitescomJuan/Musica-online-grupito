@@ -453,30 +453,27 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
    });
  }
  function renderGeneralLibrary(){const grid=$('general-song-grid');if(!grid)return;$('general-song-count').textContent=`${songs.length} ${songs.length===1?'canción':'canciones'}`;drawSongCards(songs,grid);}
- const renderedSongViews=new Set();
- const songViewKey=()=>`library:${currentCampaignFilter||'uncategorized'}`;
  const baseRefresh=refreshSongs;
- refreshSongs=async function(){renderedSongViews.clear();await baseRefresh();queueReady=true;renderQueue();renderGeneralLibrary();renderedSongViews.add(songViewKey());renderedSongViews.add('general-library');};
+ refreshSongs=async function(){await baseRefresh();queueReady=true;renderQueue();renderGeneralLibrary();};
  const baseLoad=loadAll;
- loadAll=async function(){renderedSongViews.clear();await baseLoad();queueReady=true;renderQueue();renderGeneralLibrary();renderedSongViews.add(songViewKey());renderedSongViews.add('general-library');};
+ loadAll=async function(){await baseLoad();queueReady=true;renderQueue();renderGeneralLibrary();};
  window.navigateView=function(v,push=true){
    if(!v||!$(v+'-view'))return;
    personalView=v;if(push)history.pushState({rpmView:v},'',`#${v}`);
    if(v!=='library')currentCampaignFilter=null;
    const views=['library','general-library','campaigns','rooms','upload','profile','admin'];
-   // Cambiar de sección solo alterna visibilidad: no vaciamos ni reconstruimos el DOM.
    views.forEach(x=>$(x+'-view')?.classList.toggle('hidden',x!==v));
    document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
    $('page-title').textContent=({'library':'Inicio','general-library':'Biblioteca general','campaigns':'Campañas','rooms':'Salas de escucha','upload':'Añadir canción','profile':'Mi perfil','admin':'Administración'})[v]||'ROLEPLAY MUSIC';
-   if(v==='library'&&!renderedSongViews.has(songViewKey())){renderSongs();renderedSongViews.add(songViewKey());}
-   if(v==='general-library'&&!renderedSongViews.has('general-library')){renderGeneralLibrary();renderedSongViews.add('general-library');}
+   if(v==='library')renderSongs();
+   if(v==='general-library')renderGeneralLibrary();
    if(v==='admin'&&profile?.role==='admin')refreshAdmin();
  };
  document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>navigateView(b.dataset.view));
  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>navigateView(b.dataset.go));
  // Las campañas abren la vista de canciones filtrada por su campaign_id.
  const oldRenderCampaigns=renderCampaigns;
- renderCampaigns=function(){oldRenderCampaigns();document.querySelectorAll('.campaign-card button').forEach((b,i)=>{b.onclick=()=>{currentCampaignFilter=campaigns[i]?.id||null;renderedSongViews.delete(songViewKey());navigateView('library');};});};
+ renderCampaigns=function(){oldRenderCampaigns();document.querySelectorAll('.campaign-card button').forEach((b,i)=>{b.onclick=()=>{currentCampaignFilter=campaigns[i]?.id||null;navigateView('library');renderSongs();};});};
  $('queue-clear').onclick=()=>{personalQueue=[];persistQueue();renderQueue();};
  // El siguiente tema siempre respeta la cola personal; nunca salta al catálogo completo.
  window.nextPersonalTrack=function(){
@@ -505,4 +502,63 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
  // Restaurar cola después de que la sesión y las canciones estén disponibles.
  window.addEventListener('storage',e=>{if(e.key===QUEUE_KEY){try{personalQueue=JSON.parse(e.newValue||'[]');renderQueue();}catch(_){}}});
  persistQueue();
+})();
+
+
+/* ROLEPLAY MUSIC 4.4.2 - cola estrictamente manual
+   Reproducir una canción nunca debe convertir la biblioteca en una cola. */
+(function(){
+  const originalPlaySongForManualQueue = playSong;
+  playSong = function(index){
+    const queueBefore = Array.isArray(personalQueue) ? personalQueue.slice() : [];
+    originalPlaySongForManualQueue(index);
+    // La reproducción directa solo cambia la canción actual; no la cola.
+    if (!activeRoom && Array.isArray(personalQueue)) {
+      const changed = personalQueue.length !== queueBefore.length ||
+        personalQueue.some((id, i) => id !== queueBefore[i]);
+      if (changed) {
+        personalQueue = queueBefore;
+        if (typeof persistQueue === 'function') persistQueue();
+        else if (typeof saveQueue === 'function') saveQueue();
+      }
+      if (typeof renderQueue === 'function') renderQueue();
+    }
+  };
+  // Esta función antigua permitía reemplazar la cola por una lista completa.
+  // Se desactiva: la única forma de añadir temas es pulsar «＋ Cola».
+  window.setQueueFromList = function(){
+    console.warn('setQueueFromList desactivado: la cola personal se gestiona canción a canción.');
+  };
+  // Los controles de siguiente/anterior usan únicamente la cola manual.
+  window.nextPersonalTrack = function(){
+    if (activeRoom) { roomNext(1); return; }
+    if (repeatMode === 'one' && currentIndex >= 0) { audio.currentTime = 0; audio.play().catch(()=>{}); return; }
+    const currentId = songs[currentIndex]?.id;
+    const index = personalQueue.indexOf(currentId);
+    const next = index + 1;
+    if (next >= personalQueue.length) {
+      if (repeatMode === 'all' && personalQueue.length) {
+        const first = songs.findIndex(s => s.id === personalQueue[0]);
+        if (first >= 0) { playSong(first); return; }
+      }
+      audio.pause(); return;
+    }
+    const nextIndex = songs.findIndex(s => s.id === personalQueue[next]);
+    if (nextIndex >= 0) playSong(nextIndex); else audio.pause();
+  };
+  window.previousPersonalTrack = function(){
+    if (activeRoom) { roomNext(-1); return; }
+    if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+    const index = personalQueue.indexOf(songs[currentIndex]?.id);
+    if (index > 0) {
+      const previousIndex = songs.findIndex(s => s.id === personalQueue[index - 1]);
+      if (previousIndex >= 0) playSong(previousIndex);
+    } else if (index === 0 && repeatMode === 'all' && personalQueue.length) {
+      const lastIndex = songs.findIndex(s => s.id === personalQueue[personalQueue.length - 1]);
+      if (lastIndex >= 0) playSong(lastIndex);
+    } else audio.currentTime = 0;
+  };
+  $('prev-button').onclick = $('full-prev').onclick = window.previousPersonalTrack;
+  $('next-button').onclick = $('full-next').onclick = window.nextPersonalTrack;
+  audio.onended = function(){ if (activeRoom) roomNext(1); else window.nextPersonalTrack(); };
 })();
