@@ -382,3 +382,124 @@ audio.addEventListener('loadedmetadata',()=>{if('mediaSession'in navigator&&Numb
 audio.addEventListener('timeupdate',()=>{if('mediaSession'in navigator&&Number.isFinite(audio.duration)&&audio.duration>0)try{navigator.mediaSession.setPositionState?.({duration:audio.duration,playbackRate:audio.playbackRate,position:audio.currentTime});}catch(_){}});
 
 const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBaseRefreshSongs();if(typeof renderQueue==='function')renderQueue();};
+
+
+/* ROLEPLAY MUSIC 4.4 - estructura de biblioteca y cola personal corregida */
+(function(){
+ const QUEUE_KEY='rpm_personal_queue_v2';
+ let queueReady=false;
+ try {
+   const saved=JSON.parse(localStorage.getItem(QUEUE_KEY) || localStorage.getItem('rpm_personal_queue') || '[]');
+   if(Array.isArray(saved)) personalQueue=saved.filter(x=>typeof x==='string');
+ } catch(_) { personalQueue=[]; }
+ function persistQueue(){
+   localStorage.setItem(QUEUE_KEY,JSON.stringify(personalQueue));
+   localStorage.setItem('rpm_personal_queue',JSON.stringify(personalQueue));
+ }
+ window.saveQueue=persistQueue;
+ window.queueAdd=function(id){
+   if(!songs.some(s=>s.id===id)) return;
+   if(personalQueue.includes(id)){toast('Esa canción ya está en «Lista para ahora».');return;}
+   personalQueue.push(id);persistQueue();renderQueue();toast('Añadida a «Lista para ahora».');
+ };
+ window.setQueueFromList=function(list,startIndex){
+   const ids=list.map(s=>s.id);
+   const start=ids[startIndex];
+   if(!start)return;
+   let rest=ids.filter(id=>id!==start);
+   if(shuffleEnabled)rest=rest.sort(()=>Math.random()-.5);
+   personalQueue=[start,...rest];persistQueue();renderQueue();
+ };
+ window.renderQueue=function(){
+   const box=$('queue-list');if(!box)return;box.innerHTML='';
+   // No borrar una cola guardada mientras las canciones aún están cargando.
+   if(!songs.length){box.innerHTML='<div class="empty-state"><h3>Cargando tu lista…</h3></div>';return;}
+   const valid=personalQueue.filter(id=>songs.some(s=>s.id===id));
+   if(valid.length!==personalQueue.length){personalQueue=valid;persistQueue();}
+   if(!valid.length){box.innerHTML='<div class="empty-state"><div class="empty-icon">♫</div><h3>Tu lista está vacía</h3><p>Añade canciones con «＋ Cola» desde cualquier biblioteca.</p></div>';return;}
+   valid.forEach((id,index)=>{
+     const song=songs.find(s=>s.id===id);if(!song)return;
+     const row=document.createElement('div');row.className='queue-row'+(songs[currentIndex]?.id===id?' playing':'');
+     const art=document.createElement('div');art.className='queue-art';if(song.coverUrl)art.style.backgroundImage=`url("${song.coverUrl}")`;else art.textContent='♫';
+     const info=document.createElement('button');info.className='queue-track';info.innerHTML=`<strong>${escapeHtml(song.title)}</strong><small>${escapeHtml(song.artist||'')}</small>`;
+     info.onclick=()=>playSong(songs.findIndex(s=>s.id===id));
+     const up=document.createElement('button');up.textContent='↑';up.title='Mover arriba';up.disabled=index===0;up.onclick=()=>{[personalQueue[index-1],personalQueue[index]]=[personalQueue[index],personalQueue[index-1]];persistQueue();renderQueue();};
+     const down=document.createElement('button');down.textContent='↓';down.title='Mover abajo';down.disabled=index===valid.length-1;down.onclick=()=>{[personalQueue[index+1],personalQueue[index]]=[personalQueue[index],personalQueue[index+1]];persistQueue();renderQueue();};
+     const remove=document.createElement('button');remove.textContent='×';remove.title='Quitar';remove.onclick=()=>{personalQueue.splice(index,1);persistQueue();renderQueue();};
+     row.append(art,info,up,down,remove);box.append(row);
+   });
+ };
+ window.renderSongs=function(){
+   const target=$('song-grid');if(!target)return;
+   const list=currentCampaignFilter?songs.filter(s=>s.campaign_id===currentCampaignFilter):songs.filter(s=>!s.campaign_id);
+   $('library-heading').textContent=currentCampaignFilter?(campaigns.find(c=>c.id===currentCampaignFilter)?.name||'Campaña'):'Canciones sin campaña';
+   $('song-count').textContent=`${list.length} ${list.length===1?'canción':'canciones'}`;
+   drawSongCards(list,target);
+ };
+ function drawSongCards(list,grid){
+   grid.innerHTML='';
+   if(!list.length){grid.innerHTML='<div class="empty-state"><div class="empty-icon">♫</div><h3>No hay canciones aquí todavía</h3><p>Cuando añadáis música sin campaña, aparecerá en este espacio.</p><button class="secondary-button" id="empty-add">＋ Añadir canción</button></div>';const b=$('empty-add');if(b)b.onclick=()=>navigateView('upload');return;}
+   list.forEach((song,localIndex)=>{
+     const card=document.createElement('article');card.className='song-card';
+     const cover=document.createElement('div');cover.className='song-cover';if(song.coverUrl){cover.style.backgroundImage=`url("${song.coverUrl}")`;cover.style.backgroundSize='cover';cover.style.backgroundPosition='center';}else cover.textContent='♫';
+     const h=document.createElement('h3');h.textContent=song.title;const p=document.createElement('p');p.textContent=[song.artist,campaigns.find(c=>c.id===song.campaign_id)?.name].filter(Boolean).join(' · ')||song.description||'Canción de rol';
+     const actions=document.createElement('div');actions.className='song-card-actions';
+     const play=document.createElement('button');play.className='primary-button';play.textContent='▶ Escuchar';play.onclick=e=>{e.stopPropagation();setQueueFromList(list,localIndex);playSong(songs.findIndex(s=>s.id===song.id));};
+     const add=document.createElement('button');add.className='secondary-button';add.textContent='＋ Cola';add.onclick=e=>{e.stopPropagation();queueAdd(song.id);};
+     actions.append(play,add);card.append(cover,h,p,actions);
+     card.onclick=()=>{setQueueFromList(list,localIndex);playSong(songs.findIndex(s=>s.id===song.id));};
+     if(profile?.role==='admin'){const del=document.createElement('button');del.className='card-delete';del.textContent='Eliminar';del.onclick=async e=>{e.stopPropagation();await deleteSong(song);};card.append(del);}
+     grid.append(card);
+   });
+ }
+ function renderGeneralLibrary(){const grid=$('general-song-grid');if(!grid)return;$('general-song-count').textContent=`${songs.length} ${songs.length===1?'canción':'canciones'}`;drawSongCards(songs,grid);}
+ const baseRefresh=refreshSongs;
+ refreshSongs=async function(){await baseRefresh();queueReady=true;renderQueue();renderGeneralLibrary();};
+ const baseLoad=loadAll;
+ loadAll=async function(){await baseLoad();queueReady=true;renderQueue();renderGeneralLibrary();};
+ window.navigateView=function(v,push=true){
+   if(!v||!$(v+'-view'))return;
+   personalView=v;if(push)history.pushState({rpmView:v},'',`#${v}`);
+   if(v!=='library')currentCampaignFilter=null;
+   const views=['library','general-library','campaigns','rooms','upload','profile','admin'];
+   views.forEach(x=>$(x+'-view')?.classList.toggle('hidden',x!==v));
+   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+   $('page-title').textContent=({'library':'Inicio','general-library':'Biblioteca general','campaigns':'Campañas','rooms':'Salas de escucha','upload':'Añadir canción','profile':'Mi perfil','admin':'Administración'})[v]||'ROLEPLAY MUSIC';
+   if(v==='library')renderSongs();
+   if(v==='general-library')renderGeneralLibrary();
+   if(v==='admin'&&profile?.role==='admin')refreshAdmin();
+ };
+ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>navigateView(b.dataset.view));
+ document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>navigateView(b.dataset.go));
+ // Las campañas abren la vista de canciones filtrada por su campaign_id.
+ const oldRenderCampaigns=renderCampaigns;
+ renderCampaigns=function(){oldRenderCampaigns();document.querySelectorAll('.campaign-card button').forEach((b,i)=>{b.onclick=()=>{currentCampaignFilter=campaigns[i]?.id||null;navigateView('library');renderSongs();};});};
+ $('queue-clear').onclick=()=>{personalQueue=[];persistQueue();renderQueue();};
+ // El siguiente tema siempre respeta la cola personal; nunca salta al catálogo completo.
+ window.nextPersonalTrack=function(){
+   if(activeRoom){roomNext(1);return;}
+   if(repeatMode==='one'&&currentIndex>=0){audio.currentTime=0;audio.play();return;}
+   const currentId=songs[currentIndex]?.id;let idx=personalQueue.indexOf(currentId);
+   if(idx<0){if(!personalQueue.length){audio.pause();return;}idx=-1;}
+   let next=idx+1;
+   if(shuffleEnabled&&idx===personalQueue.length-1&&repeatMode==='all'){
+     personalQueue=personalQueue.slice().sort(()=>Math.random()-.5);persistQueue();idx=-1;next=0;
+   }
+   if(next>=personalQueue.length){if(repeatMode==='all'&&personalQueue.length){playSong(songs.findIndex(s=>s.id===personalQueue[0]));return;}audio.pause();return;}
+   const nextIndex=songs.findIndex(s=>s.id===personalQueue[next]);if(nextIndex>=0)playSong(nextIndex);else audio.pause();
+ };
+ window.previousPersonalTrack=function(){
+   if(activeRoom){roomNext(-1);return;}
+   if(audio.currentTime>3){audio.currentTime=0;return;}
+   const idx=personalQueue.indexOf(songs[currentIndex]?.id);
+   if(idx>0){const prev=songs.findIndex(s=>s.id===personalQueue[idx-1]);if(prev>=0)playSong(prev);}
+   else if(idx===0&&repeatMode==='all'&&personalQueue.length){const last=songs.findIndex(s=>s.id===personalQueue[personalQueue.length-1]);if(last>=0)playSong(last);}
+   else audio.currentTime=0;
+ };
+ $('prev-button').onclick=$('full-prev').onclick=previousPersonalTrack;
+ $('next-button').onclick=$('full-next').onclick=nextPersonalTrack;
+ audio.onended=()=>{if(activeRoom){roomNext(1);return;}nextPersonalTrack();};
+ // Restaurar cola después de que la sesión y las canciones estén disponibles.
+ window.addEventListener('storage',e=>{if(e.key===QUEUE_KEY){try{personalQueue=JSON.parse(e.newValue||'[]');renderQueue();}catch(_){}}});
+ persistQueue();
+})();
