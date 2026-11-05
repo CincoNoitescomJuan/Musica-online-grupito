@@ -315,6 +315,13 @@ function editSongAdmin(s){
  if(!canEditSong(s)){toast('Solo puedes editar canciones que hayas subido tú.',true);return;}
  const isOwner=s.created_by===session.user.id && profile?.role!=='admin';
  const opts='<option value="">Sin campaña</option>'+campaigns.map(c=>`<option value="${c.id}" ${c.id===s.campaign_id?'selected':''}>${escapeHtml(c.name)}</option>`).join('');
+ // En móviles, algunas reglas del tema ocultaban o comprimían el botón de borrado.
+ // Este ajuste solo afecta al formulario de canción en pantallas estrechas.
+ if(!document.getElementById('song-delete-mobile-style')){
+  const style=document.createElement('style');style.id='song-delete-mobile-style';
+  style.textContent='@media (max-width: 640px){#admin-song-edit .admin-modal-actions{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:10px!important;width:100%!important;}#admin-song-edit .admin-modal-actions button,#admin-song-edit #ae-delete{display:flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important;width:100%!important;min-height:48px!important;margin:0!important;flex:0 0 auto!important;}#admin-song-edit #ae-delete{order:0!important;visibility:visible!important;opacity:1!important;}#admin-song-edit #ae-cancel{order:1!important;}#admin-song-edit .admin-modal-actions button[type=submit]{order:2!important;}}';
+  document.head.appendChild(style);
+ }
  adminOpenModal('Editar canción',`<form id="admin-song-edit" class="admin-edit-form">
   <label>Título<input id="ae-title" maxlength="90" required value="${escapeHtml(s.title)}"></label>
   <label>Artista / personaje<input id="ae-artist" maxlength="90" value="${escapeHtml(s.artist||'')}"></label>
