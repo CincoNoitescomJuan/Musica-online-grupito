@@ -453,27 +453,30 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
    });
  }
  function renderGeneralLibrary(){const grid=$('general-song-grid');if(!grid)return;$('general-song-count').textContent=`${songs.length} ${songs.length===1?'canción':'canciones'}`;drawSongCards(songs,grid);}
+ const renderedSongViews=new Set();
+ const songViewKey=()=>`library:${currentCampaignFilter||'uncategorized'}`;
  const baseRefresh=refreshSongs;
- refreshSongs=async function(){await baseRefresh();queueReady=true;renderQueue();renderGeneralLibrary();};
+ refreshSongs=async function(){renderedSongViews.clear();await baseRefresh();queueReady=true;renderQueue();renderGeneralLibrary();renderedSongViews.add(songViewKey());renderedSongViews.add('general-library');};
  const baseLoad=loadAll;
- loadAll=async function(){await baseLoad();queueReady=true;renderQueue();renderGeneralLibrary();};
+ loadAll=async function(){renderedSongViews.clear();await baseLoad();queueReady=true;renderQueue();renderGeneralLibrary();renderedSongViews.add(songViewKey());renderedSongViews.add('general-library');};
  window.navigateView=function(v,push=true){
    if(!v||!$(v+'-view'))return;
    personalView=v;if(push)history.pushState({rpmView:v},'',`#${v}`);
    if(v!=='library')currentCampaignFilter=null;
    const views=['library','general-library','campaigns','rooms','upload','profile','admin'];
+   // Cambiar de sección solo alterna visibilidad: no vaciamos ni reconstruimos el DOM.
    views.forEach(x=>$(x+'-view')?.classList.toggle('hidden',x!==v));
    document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
    $('page-title').textContent=({'library':'Inicio','general-library':'Biblioteca general','campaigns':'Campañas','rooms':'Salas de escucha','upload':'Añadir canción','profile':'Mi perfil','admin':'Administración'})[v]||'ROLEPLAY MUSIC';
-   if(v==='library')renderSongs();
-   if(v==='general-library')renderGeneralLibrary();
+   if(v==='library'&&!renderedSongViews.has(songViewKey())){renderSongs();renderedSongViews.add(songViewKey());}
+   if(v==='general-library'&&!renderedSongViews.has('general-library')){renderGeneralLibrary();renderedSongViews.add('general-library');}
    if(v==='admin'&&profile?.role==='admin')refreshAdmin();
  };
  document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>navigateView(b.dataset.view));
  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>navigateView(b.dataset.go));
  // Las campañas abren la vista de canciones filtrada por su campaign_id.
  const oldRenderCampaigns=renderCampaigns;
- renderCampaigns=function(){oldRenderCampaigns();document.querySelectorAll('.campaign-card button').forEach((b,i)=>{b.onclick=()=>{currentCampaignFilter=campaigns[i]?.id||null;navigateView('library');renderSongs();};});};
+ renderCampaigns=function(){oldRenderCampaigns();document.querySelectorAll('.campaign-card button').forEach((b,i)=>{b.onclick=()=>{currentCampaignFilter=campaigns[i]?.id||null;renderedSongViews.delete(songViewKey());navigateView('library');};});};
  $('queue-clear').onclick=()=>{personalQueue=[];persistQueue();renderQueue();};
  // El siguiente tema siempre respeta la cola personal; nunca salta al catálogo completo.
  window.nextPersonalTrack=function(){
