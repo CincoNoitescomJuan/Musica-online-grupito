@@ -6,7 +6,8 @@
  <aside class="sidebar">
   <a class="brand" href="#"><span class="brand-mark">♫</span><span>ROLEPLAY<span class="brand-muted">MUSIC</span></span></a>
   <p class="nav-label">MENÚ</p>
-  <button class="nav-item active" data-view="library">▦ <span>Biblioteca general</span></button>
+  <button class="nav-item active" data-view="library">⌂ <span>Inicio</span></button>
+  <button class="nav-item" data-view="general-library">▦ <span>Biblioteca general</span></button>
   <button class="nav-item" data-view="campaigns">▣ <span>Campañas</span></button>
   <button class="nav-item" data-view="rooms">◉ <span>Salas</span></button>
   <button class="nav-item" data-view="upload">＋ <span>Subir canción</span></button>
@@ -20,8 +21,13 @@
   <div id="app-content">
    <section id="library-view" class="view">
     <div class="hero-card"><div class="hero-copy"><span class="eyebrow">BANDA SONORA DE VUESTRAS AVENTURAS</span><h2>Cada historia<br/>merece su canción.</h2><p>Reunid vuestra música de rol en un solo lugar y escuchadla juntos, estéis donde estéis.</p><button class="primary-button" data-go="upload">＋ Añadir canción</button></div><div class="hero-art"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="music-note">♫</div><div class="hero-glow"></div></div></div>
-    <div class="section-heading"><div><span class="eyebrow">VUESTRA COLECCIÓN</span><h2 id="library-heading">Biblioteca general</h2></div><span class="count-pill" id="song-count">0 canciones</span></div>
+    <div class="section-heading"><div><span class="eyebrow">MÚSICA INDEPENDIENTE</span><h2 id="library-heading">Canciones sin campaña</h2></div><span class="count-pill" id="song-count">0 canciones</span></div>
+    <p class="home-section-note">Canciones que todavía no pertenecen a ninguna historia.</p>
     <div id="song-grid" class="song-grid"></div>
+   </section>
+   <section id="general-library-view" class="view hidden">
+    <div class="section-heading"><div><span class="eyebrow">TODA VUESTRA MÚSICA</span><h2>Biblioteca general</h2><p class="home-section-note">Todas las canciones, con o sin campaña.</p></div><span class="count-pill" id="general-song-count">0 canciones</span></div>
+    <div id="general-song-grid" class="song-grid"></div>
    </section>
    <section id="campaigns-view" class="view hidden">
     <div class="section-heading"><div><span class="eyebrow">ORDENAD VUESTRA MÚSICA</span><h2>Campañas</h2></div><button class="primary-button" id="show-campaign-form">＋ Crear campaña</button></div>
