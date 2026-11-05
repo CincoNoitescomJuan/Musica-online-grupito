@@ -160,9 +160,10 @@ async function applyRemoteRoomState(state){
  renderRoomKaraoke(song);
 }
 function updateFullPlayerDescription(song){
- const cover=$('full-cover');if(!cover)return;
+ const artist=$('full-artist');if(!artist)return;
  let box=$('full-description');
- if(!box){box=document.createElement('div');box.id='full-description';box.style.cssText='width:100%;max-width:560px;margin:14px auto 0;padding:0 18px;box-sizing:border-box;text-align:center;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.5;color:var(--text-secondary, #b8b8c5);';cover.insertAdjacentElement('afterend',box);}
+ if(!box){box=document.createElement('div');box.id='full-description';box.style.cssText='width:100%;max-width:560px;margin:12px auto 0;padding:0 18px;box-sizing:border-box;text-align:center;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.5;color:var(--text-secondary, #b8b8c5);';artist.insertAdjacentElement('afterend',box);}
+ else if(box.previousElementSibling!==artist)artist.insertAdjacentElement('afterend',box);
  const description=(song?.description||'').trim();
  box.textContent=description;box.hidden=!description;
 }
