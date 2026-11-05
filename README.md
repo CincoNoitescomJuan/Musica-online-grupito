@@ -1,15 +1,9 @@
-[README.md](https://github.com/user-attachments/files/34380043/README.md)
+[README_v4_5.txt](https://github.com/user-attachments/files/34400940/README_v4_5.txt)
+ROLEPLAY MUSIC v4.5 — Descargas y renovación visual
 
-# ROLEPLAY MUSIC 3.1 — corrección de salas y rediseño visual
+Novedades:
+- Botón «Descargar» en cada canción de la biblioteca.
+- Botón «Descargar canción» en el reproductor ampliado.
+- Descarga mediante URL firmada temporal del bucket privado roleplay-audio; no expone claves ni hace público el audio.
+- Renovación visual de tarjetas, portada, navegación, reproductor y cola.
 
-## Qué cambia
-- Corregido el heartbeat de las salas: ya no envía una orden de pausa. El anfitrión actualiza la posición manteniendo `is_playing = true`.
-- Solo el creador de la sala envía el heartbeat periódico, evitando que cada participante compita por actualizar el estado.
-- Rediseño visual de la página de salas, reproductor, tarjetas, campañas y formularios.
-- Añadidos estilos para las portadas de la canción actual y de cada fila de la lista de reproducción.
-- Mejor espaciado, tarjetas más amplias y ajustes para móvil.
-
-## Nota sobre portadas
-Las portadas existentes se mostrarán si la canción o campaña tiene una imagen subida y almacenada en el bucket privado `roleplay-covers`. Las canciones que se subieron sin imagen seguirán mostrando la portada genérica hasta que se editen o se vuelvan a subir con portada.
-
-No se requiere ninguna migración adicional de Supabase para esta versión.
