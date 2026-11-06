@@ -715,15 +715,33 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
     song.audioUrl=data.signedUrl;
     return data.signedUrl;
   }
+  async function prefetchNextAudio(index){
+    if(activeRoom || !Array.isArray(personalQueue) || !personalQueue.length) return;
+    const currentId=songs[index]?.id;
+    const queueIndex=personalQueue.indexOf(currentId);
+    let nextQueueIndex=queueIndex+1;
+    if(nextQueueIndex>=personalQueue.length){
+      if(repeatMode!=='all') return;
+      nextQueueIndex=0;
+    }
+    const nextSong=songs.find(item=>item.id===personalQueue[nextQueueIndex]);
+    if(!nextSong || nextSong.id===currentId) return;
+    try{ await freshAudioUrl(nextSong, false); }
+    catch(error){ console.debug('No se pudo precargar la siguiente canción:',error); }
+  }
+  window.rpmPrefetchNextAudio = prefetchNextAudio;
   playSong = async function(index){
     if(activeRoom){ return playSongBeforeFreshAudio(index); }
     if(index<0 || index>=songs.length) return;
     const request=++playRequestId;
     const song=songs[index];
     try{
-      await freshAudioUrl(song, true);
+      // Reutiliza la URL que se precargó mientras sonaba la pista anterior.
+      await freshAudioUrl(song, false);
       if(request!==playRequestId) return;
-      return playSongBeforeFreshAudio(index);
+      const result=playSongBeforeFreshAudio(index);
+      prefetchNextAudio(index);
+      return result;
     }catch(error){
       console.error('No se pudo preparar el audio:',error);
       if(request===playRequestId) toast('No se pudo cargar esta canción. Comprueba tu conexión e inténtalo de nuevo.',true);
@@ -757,4 +775,46 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
   });
   // Evita acumular eventos de error antiguos al cambiar de pista.
   audio.addEventListener('loadstart',()=>{delete audio.dataset.recoveredSrc;});
+})();
+
+
+/* ROLEPLAY MUSIC 4.9.1 - transicion movil con pantalla bloqueada */
+(function(){
+  let endedTransitionPending=false;
+  let endedSongId=null;
+  const originalPlay=audio.play.bind(audio);
+  // Mantener la precarga activa también cuando la canción se inicia desde controles externos.
+  audio.addEventListener('playing',()=>{
+    endedTransitionPending=false;
+    if(!activeRoom && currentIndex>=0) {
+      const id=songs[currentIndex]?.id;
+      if(id!==endedSongId) endedSongId=null;
+    }
+  });
+  // El evento ended es el disparador principal. El guard evita dobles saltos
+  // si el navegador móvil emite eventos repetidos al volver de segundo plano.
+  audio.onended=null;
+  audio.addEventListener('ended',()=>{
+    if(endedTransitionPending) return;
+    endedTransitionPending=true;
+    endedSongId=activeRoom ? currentRoomSong()?.id : songs[currentIndex]?.id;
+    if(activeRoom){ roomNext(1); return; }
+    if(typeof window.nextPersonalTrack==='function') window.nextPersonalTrack();
+  });
+  // Mantener el estado de Media Session actualizado para Android y la pantalla
+  // de bloqueo, incluyendo la siguiente pista ya preparada en caché.
+  audio.addEventListener('loadedmetadata',()=>{
+    if('mediaSession' in navigator){
+      try{
+        navigator.mediaSession.playbackState=audio.paused?'paused':'playing';
+        if(Number.isFinite(audio.duration)&&audio.duration>0) navigator.mediaSession.setPositionState?.({duration:audio.duration,playbackRate:audio.playbackRate,position:audio.currentTime});
+      }catch(_){}
+    }
+  });
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible' && !audio.paused && !activeRoom && currentIndex>=0){
+      // Al volver a primer plano, renueva/prepara la siguiente URL si hace falta.
+      try{ window.rpmPrefetchNextAudio?.(currentIndex); }catch(_){}
+    }
+  });
 })();
