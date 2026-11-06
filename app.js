@@ -726,26 +726,41 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
     }
     const nextSong=songs.find(item=>item.id===personalQueue[nextQueueIndex]);
     if(!nextSong || nextSong.id===currentId) return;
-    try{ await freshAudioUrl(nextSong, false); }
-    catch(error){ console.debug('No se pudo precargar la siguiente canción:',error); }
+    try{
+      await freshAudioUrl(nextSong, false);
+      const cached=getCachedAudioUrl(nextSong);
+      if(cached) nextSong.audioUrl=cached;
+    }catch(error){ console.debug('No se pudo precargar la siguiente canción:',error); }
   }
   window.rpmPrefetchNextAudio = prefetchNextAudio;
-  playSong = async function(index){
+  function getCachedAudioUrl(song){
+    const cached = song && audioUrlCache.get(song.id);
+    return cached && cached.expiresAt > Date.now() + 3*60*1000 ? cached.url : null;
+  }
+  playSong = function(index){
     if(activeRoom){ return playSongBeforeFreshAudio(index); }
     if(index<0 || index>=songs.length) return;
     const request=++playRequestId;
     const song=songs[index];
-    try{
-      // Reutiliza la URL que se precargó mientras sonaba la pista anterior.
-      await freshAudioUrl(song, false);
+    // Transición síncrona si la pista ya fue precargada: evita esperar red
+    // justo cuando Android mantiene la pestaña en segundo plano.
+    const cachedUrl=getCachedAudioUrl(song);
+    if(cachedUrl){
+      song.audioUrl=cachedUrl;
+      const result=playSongBeforeFreshAudio(index);
+      prefetchNextAudio(index);
+      return result;
+    }
+    // Para inicios manuales o pistas no precargadas, obtener URL primero.
+    freshAudioUrl(song, false).then(()=>{
       if(request!==playRequestId) return;
       const result=playSongBeforeFreshAudio(index);
       prefetchNextAudio(index);
       return result;
-    }catch(error){
+    }).catch(error=>{
       console.error('No se pudo preparar el audio:',error);
       if(request===playRequestId) toast('No se pudo cargar esta canción. Comprueba tu conexión e inténtalo de nuevo.',true);
-    }
+    });
   };
   // Si el enlace caduca o el servidor corta la descarga durante una reproducción,
   // solicita un enlace nuevo y reintenta una sola vez para esa canción.
