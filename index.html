@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es">
-<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="theme-color" content="#101018"/><title>Roleplay Music</title><link rel="stylesheet" href="styles.css"/></head>
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="theme-color" content="#0b0b10"/><meta name="color-scheme" content="dark"/><meta name="description" content="La banda sonora compartida de vuestras historias de rol."/><title>ROLEPLAY MUSIC · Cada historia merece su canción</title><link rel="stylesheet" href="styles.css"/></head>
 <body>
 <div class="app-shell">
  <aside class="sidebar">
@@ -16,7 +16,7 @@
   <div class="sidebar-bottom"><div class="connection-dot" id="connection-dot"></div><span id="connection-label">Conectando…</span></div>
  </aside>
  <main class="main-content">
-  <header class="topbar"><div><span class="eyebrow">TU MÚSICA, VUESTRAS HISTORIAS</span><h1 id="page-title">Biblioteca musical</h1></div><div class="account-area"><span class="user-chip" id="user-chip">Invitado</span></div></header>
+  <header class="topbar"><div class="topbar-heading"><span class="eyebrow">TU MÚSICA, VUESTRAS HISTORIAS</span><h1 id="page-title">Biblioteca musical</h1></div><div class="topbar-tools"><label class="global-search" aria-label="Buscar en ROLEPLAY MUSIC"><span>⌕</span><input id="rpm-global-search" type="search" placeholder="Buscar canciones, personajes…" autocomplete="off"/><kbd>/</kbd></label><select id="rpm-sort" class="sort-select" aria-label="Ordenar canciones"><option value="recent">Más recientes</option><option value="title">Título A–Z</option><option value="artist">Artista A–Z</option></select><span class="user-chip" id="user-chip">Invitado</span></div></header>
   <section id="identity-panel" class="auth-panel hidden"><div class="auth-copy"><span class="eyebrow">BIENVENIDO A LA BANDA SONORA</span><h2>Entra en vuestra biblioteca.</h2><p>Elige el nombre con el que aparecerás ante el grupo. No necesitas correo, contraseña ni registro.</p></div><form id="identity-form" class="auth-form"><label>¿Cómo quieres que te llamemos?<input id="first-name" maxlength="30" minlength="2" required placeholder="Tu nombre en el grupo"/></label><button class="primary-button" id="enter-button" type="submit">Entrar en la biblioteca</button><p class="helper-text">Recordaremos tu identidad en este dispositivo.</p></form></section>
   <div id="app-content">
    <section id="library-view" class="view">
@@ -27,7 +27,7 @@
    </section>
    <section id="general-library-view" class="view hidden">
     <div class="section-heading"><div><span class="eyebrow">TODA VUESTRA MÚSICA</span><h2>Biblioteca general</h2><p class="home-section-note">Todas las canciones, con o sin campaña.</p></div><span class="count-pill" id="general-song-count">0 canciones</span></div>
-    <div id="general-song-grid" class="song-grid"></div>
+    <div class="library-context"><span class="live-pulse"></span><span>Toda la música compartida</span><span class="context-divider">·</span><span>Campañas, personajes y aventuras</span></div><div id="general-song-grid" class="song-grid"></div>
    </section>
    <section id="campaigns-view" class="view hidden">
     <div class="section-heading"><div><span class="eyebrow">ORDENAD VUESTRA MÚSICA</span><h2>Campañas</h2></div><button class="primary-button" id="show-campaign-form">＋ Crear campaña</button></div>
