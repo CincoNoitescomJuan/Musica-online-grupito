@@ -135,6 +135,16 @@ async function enterRoom(room){
  renderRoomPlaylist();
  roomChannel=db.channel('room-'+room.id)
   .on('postgres_changes',{event:'UPDATE',schema:'public',table:'rooms',filter:`id=eq.${room.id}`},payload=>{const next=payload.new;activeRoom=next;applyRemoteRoomState(next);})
+  .on('postgres_changes',{event:'DELETE',schema:'public',table:'rooms',filter:`id=eq.${room.id}`},()=>{
+    if(!activeRoom || activeRoom.id!==room.id) return;
+    if(roomHeartbeat){clearInterval(roomHeartbeat);roomHeartbeat=null;}
+    const ch=roomChannel;roomChannel=null;
+    if(ch) db.removeChannel(ch).catch(()=>{});
+    activeRoom=null;roomApplyingRemote=false;audio.pause();delete audio.dataset.roomSongId;
+    $('active-room').classList.add('hidden');$('rooms-empty').classList.remove('hidden');
+    $('room-sync-status').textContent='Sala cerrada';
+    toast('El anfitrión ha cerrado la sala.');
+  })
   .subscribe(status=>{$('room-sync-status').textContent=status==='SUBSCRIBED'?'● Sincronización en directo':'Conectando…';});
  await applyRemoteRoomState(room);
  if(roomHeartbeat)clearInterval(roomHeartbeat);
@@ -832,4 +842,103 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
       try{ window.rpmPrefetchNextAudio?.(currentIndex); }catch(_){}
     }
   });
+})();
+
+
+/* ROLEPLAY MUSIC 4.9.5 — coordinador de salas, cola y sincronización */
+(function(){
+  // Evita que cada participante intente avanzar la misma sala al terminar
+  // una canción. El anfitrión (creador) es el único que publica el siguiente tema.
+  const baseRoomNext = roomNext;
+  let roomAutoAdvanceLock = false;
+  let roomLastAutoAdvanceKey = '';
+  let roomLastStateSignature = '';
+  let roomDeletedHandled = false;
+
+  roomNext = async function(direction=1, automatic=false){
+    if(!activeRoom) return;
+    if(!automatic && activeRoom.created_by !== session?.user?.id){
+      toast('El anfitrión controla los cambios de canción de esta sala.', true);
+      return;
+    }
+    if(automatic){
+      if(activeRoom.created_by !== session?.user?.id) return;
+      const key = `${activeRoom.id}:${activeRoom.current_song_id || ''}`;
+      if(roomAutoAdvanceLock || roomLastAutoAdvanceKey===key) return;
+      roomAutoAdvanceLock=true;
+      roomLastAutoAdvanceKey=key;
+      try { await baseRoomNext(direction); }
+      catch(error){ roomLastAutoAdvanceKey=''; console.error('Error avanzando sala:',error); }
+      finally { roomAutoAdvanceLock=false; }
+      return;
+    }
+    return baseRoomNext(direction);
+  };
+
+  // El evento DELETE se registra en la propia creación del canal (antes de subscribe).
+  // No re-aplicar el mismo estado recibido: evita múltiples llamadas a play()
+  // y pequeños saltos de posición por ecos/repeticiones de Realtime.
+  const oldApplyRemoteRoomState = applyRemoteRoomState;
+  applyRemoteRoomState = async function(state){
+    if(!state || !activeRoom || state.id!==activeRoom.id) return;
+    const signature = [
+      state.id, state.current_song_id, state.is_playing,
+      Math.round(Number(state.position_seconds||0)),
+      state.updated_at || ''
+    ].join('|');
+    if(signature===roomLastStateSignature) return;
+    roomLastStateSignature=signature;
+    return oldApplyRemoteRoomState(state);
+  };
+
+  // Realtime puede entregar eventos antiguos tras reconectar. Al reconectar,
+  // se consulta la fila actual en vez de reproducir un payload obsoleto.
+  const oldRoomChannelSubscribe = roomChannel;
+  document.addEventListener('visibilitychange',async()=>{
+    if(document.visibilityState!=='visible' || !activeRoom) return;
+    try{
+      const {data,error}=await db.from('rooms').select('*').eq('id',activeRoom.id).maybeSingle();
+      if(error) throw error;
+      if(!data){
+        if(roomDeletedHandled) return;
+        roomDeletedHandled=true;
+        if(roomHeartbeat){clearInterval(roomHeartbeat);roomHeartbeat=null;}
+        if(roomChannel){await db.removeChannel(roomChannel);roomChannel=null;}
+        activeRoom=null;audio.pause();delete audio.dataset.roomSongId;
+        $('active-room').classList.add('hidden');$('rooms-empty').classList.remove('hidden');
+        toast('Esta sala ya no está disponible.');
+        return;
+      }
+      roomLastStateSignature='';
+      await applyRemoteRoomState(data);
+    }catch(error){console.debug('No se pudo revalidar la sala:',error);}
+  });
+
+  // Un solo coordinador para los finales de canción. Los listeners históricos
+  // siguen llamando roomNext(1), que ahora aplica la regla de anfitrión.
+  audio.addEventListener('ended',()=>{
+    if(activeRoom && activeRoom.created_by!==session?.user?.id){
+      $('room-sync-status').textContent='Esperando al anfitrión…';
+    }
+  });
+
+  // Indicador visual discreto de sincronización y sala activa.
+  if(!document.getElementById('rpm-polish-495')){
+    const style=document.createElement('style');
+    style.id='rpm-polish-495';
+    style.textContent=`
+      #active-room{border:1px solid rgba(190,145,255,.28);border-radius:22px;box-shadow:0 14px 44px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.04)}
+      .room-song-row{transition:background .18s ease,border-color .18s ease,transform .18s ease}
+      .room-song-row:hover{transform:translateY(-1px);border-color:rgba(202,164,255,.5)}
+      .room-song-row.selected{background:rgba(178,130,255,.13);border-color:rgba(202,164,255,.58)}
+      #room-sync-status{font-size:.78rem;letter-spacing:.035em}
+      #queue-list .queue-row.playing{background:rgba(178,130,255,.12);border-color:rgba(202,164,255,.45)}
+      @media(max-width:640px){
+        #active-room{border-radius:16px;padding:14px}
+        .room-song-row{min-height:58px}
+        #room-playlist{max-height:48vh;overflow:auto;overscroll-behavior:contain}
+        #queue-list{max-height:55vh;overflow:auto;overscroll-behavior:contain}
+      }`;
+    document.head.appendChild(style);
+  }
 })();
