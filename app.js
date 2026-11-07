@@ -499,7 +499,7 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
    grid.innerHTML='';
    if(!list.length){grid.innerHTML='<div class="empty-state"><div class="empty-icon">♫</div><h3>No hay canciones aquí todavía</h3><p>Cuando añadáis música sin campaña, aparecerá en este espacio.</p><button class="secondary-button" id="empty-add">＋ Añadir canción</button></div>';const b=$('empty-add');if(b)b.onclick=()=>navigateView('upload');return;}
    list.forEach((song,localIndex)=>{
-     const card=document.createElement('article');card.className='song-card';
+     const card=document.createElement('article');card.className='song-card';card.dataset.songId=song.id;
      const cover=document.createElement('div');cover.className='song-cover';if(song.coverUrl){cover.style.backgroundImage=`url("${song.coverUrl}")`;cover.style.backgroundSize='cover';cover.style.backgroundPosition='center';}else cover.textContent='♫';
      const h=document.createElement('h3');h.textContent=song.title;const p=document.createElement('p');p.textContent=[song.artist,campaigns.find(c=>c.id===song.campaign_id)?.name].filter(Boolean).join(' · ')||song.description||'Canción de rol';
      const actions=document.createElement('div');actions.className='song-card-actions';
@@ -941,4 +941,129 @@ const rpmBaseRefreshSongs=refreshSongs;refreshSongs=async function(){await rpmBa
       }`;
     document.head.appendChild(style);
   }
+})();
+
+
+/* ============================================================
+   ROLEPLAY MUSIC V5 — EXPERIENCE & RELIABILITY LAYER
+   Conserva el backend y los permisos existentes; mejora la capa
+   de navegación, catálogo, controles y sincronización visual.
+   ============================================================ */
+(function(){
+  'use strict';
+  const search=$('rpm-global-search'), sort=$('rpm-sort');
+  if(!search || !sort) return;
+  let query='', sortMode='recent', liveRefreshTimer=null, lastLiveRefresh=0;
+  const catalogGrids=()=>[$('song-grid'),$('general-song-grid')].filter(Boolean);
+  const campaignGrid=$('campaign-grid');
+  const norm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es');
+  function applySearch(){
+    const q=norm(query);
+    [...catalogGrids(),campaignGrid].filter(Boolean).forEach(grid=>{
+      const cards=[...grid.children].filter(el=>el.classList.contains('song-card')||el.classList.contains('campaign-card'));
+      let shown=0;
+      cards.forEach(card=>{const match=!q||norm(card.textContent).includes(q);card.hidden=!match;if(match)shown++;});
+      let empty=grid.querySelector('.rpm-no-results');
+      if(q && cards.length && !shown){
+        if(!empty){empty=document.createElement('div');empty.className='rpm-no-results';empty.innerHTML='<span>⌕</span><strong>No encontramos coincidencias</strong><small>Prueba con otro título, personaje o campaña.</small>';grid.append(empty);}
+        empty.hidden=false;
+      }else if(empty)empty.hidden=true;
+    });
+  }
+  function applySort(){
+    catalogGrids().forEach(grid=>{
+      const cards=[...grid.querySelectorAll(':scope > .song-card')];
+      cards.sort((a,b)=>{
+        const at=a.querySelector('h3')?.textContent||'', bt=b.querySelector('h3')?.textContent||'';
+        if(sortMode==='recent')return songs.findIndex(s=>s.id===a.dataset.songId)-songs.findIndex(s=>s.id===b.dataset.songId);
+        if(sortMode==='title')return at.localeCompare(bt,'es',{sensitivity:'base'});
+        const aa=songs.find(s=>s.id===a.dataset.songId)?.artist||'';
+        const ba=songs.find(s=>s.id===b.dataset.songId)?.artist||'';
+        return aa.localeCompare(ba,'es',{sensitivity:'base'})||at.localeCompare(bt,'es',{sensitivity:'base'});
+      });
+      cards.forEach(card=>grid.append(card));
+    });
+  }
+  function refreshCatalog(){applySort();applySearch();}
+  search.addEventListener('input',()=>{query=search.value.trim();applySearch();});
+  sort.addEventListener('change',()=>{sortMode=sort.value;applySort();applySearch();});
+  search.addEventListener('keydown',e=>{if(e.key==='Escape'){search.value='';query='';applySearch();search.blur();}});
+  document.addEventListener('keydown',e=>{
+    const target=e.target;
+    const typing=target && (target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(target.tagName));
+    if(e.key==='/'&&!typing&&!e.ctrlKey&&!e.metaKey){e.preventDefault();search.focus();return;}
+  });
+  const observer=new MutationObserver(()=>{if(liveRefreshTimer)clearTimeout(liveRefreshTimer);liveRefreshTimer=setTimeout(()=>{applySearch();},60);});
+  [...catalogGrids(),campaignGrid].filter(Boolean).forEach(grid=>observer.observe(grid,{childList:true,subtree:false}));
+  const originalRenderSongs=renderSongs;
+  renderSongs=function(){originalRenderSongs();applySearch();};
+  const originalRenderCampaigns=renderCampaigns;
+  renderCampaigns=function(){originalRenderCampaigns();applySearch();};
+  const originalLoadAll=loadAll;
+  loadAll=async function(){await originalLoadAll();applySearch();};
+
+  // El volumen corrupto o vacío nunca debe contaminar el elemento de audio.
+  const storedVolume=Number(localStorage.getItem('roleplay_music_volume'));
+  if(!Number.isFinite(storedVolume)) setVolume(.8);
+  else setVolume(Math.max(0,Math.min(1,storedVolume)));
+
+  // Atajos discretos: funcionan fuera de campos de texto y no interfieren
+  // con el editor de letras ni con formularios.
+  document.addEventListener('keydown',e=>{
+    const el=e.target, typing=el&&(el.isContentEditable||/INPUT|TEXTAREA|SELECT/.test(el.tagName));
+    if(typing||e.altKey||e.ctrlKey||e.metaKey) return;
+    if(e.code==='Space'){
+      if(e.repeat)return;
+      e.preventDefault();
+      if(activeRoom) roomToggle();
+      else if(currentIndex<0){if(songs.length)playSong(0);}
+      else if(audio.paused)audio.play().catch(()=>{});else audio.pause();
+    }else if(e.key==='ArrowRight'&&audio.src){e.preventDefault();audio.currentTime=Math.min(audio.duration||Infinity,audio.currentTime+5);}
+    else if(e.key==='ArrowLeft'&&audio.src){e.preventDefault();audio.currentTime=Math.max(0,audio.currentTime-5);}
+    else if(e.key.toLowerCase()==='n'){e.preventDefault();if(activeRoom)roomNext(1);else window.nextPersonalTrack?.();}
+    else if(e.key.toLowerCase()==='p'){e.preventDefault();if(activeRoom)roomNext(-1);else window.previousPersonalTrack?.();}
+    else if(e.key.toLowerCase()==='q'){e.preventDefault();$('queue-drawer').classList.toggle('hidden');renderQueue();}
+  });
+
+  // Sincroniza la etiqueta de reproducción de la pestaña y el reproductor
+  // del sistema cuando el navegador soporta Media Session.
+  audio.addEventListener('play',()=>{document.title=(songs[currentIndex]?.title||'Reproduciendo')+' · ROLEPLAY MUSIC';});
+  audio.addEventListener('pause',()=>{document.title='ROLEPLAY MUSIC · Cada historia merece su canción';});
+  audio.addEventListener('ended',()=>{document.title='ROLEPLAY MUSIC · Cada historia merece su canción';});
+
+  // Realtime opcional para biblioteca/campañas. Si las tablas no están en la
+  // publicación Realtime del proyecto, la app sigue funcionando con normalidad.
+  function scheduleLiveRefresh(){
+    if(liveRefreshTimer)clearTimeout(liveRefreshTimer);
+    liveRefreshTimer=setTimeout(async()=>{
+      const now=Date.now();if(now-lastLiveRefresh<1200)return;lastLiveRefresh=now;
+      try{await loadAll();applySearch();}catch(err){console.debug('Actualización de biblioteca no disponible:',err);}
+    },450);
+  }
+  let libraryRealtimeChannel=null;
+  function startLibraryRealtime(){
+    if(!db||libraryRealtimeChannel)return;
+    try{
+      libraryRealtimeChannel=db.channel('rpm-v5-library-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'songs'},scheduleLiveRefresh)
+        .on('postgres_changes',{event:'*',schema:'public',table:'campaigns'},scheduleLiveRefresh)
+        .subscribe(status=>{if(status==='SUBSCRIBED')console.info('ROLEPLAY MUSIC: biblioteca en directo');});
+    }catch(err){console.debug('Realtime de biblioteca no disponible:',err);}
+  }
+  if(db){
+    db.auth.getSession().then(({data})=>{if(data?.session)startLibraryRealtime();}).catch(()=>{});
+    db.auth.onAuthStateChange((_event,nextSession)=>{if(nextSession)startLibraryRealtime();});
+  }
+
+  // Los elementos con aspecto de botón también se pueden activar con teclado.
+  ['player-cover','player-title','player-artist'].forEach(id=>{
+    const el=$(id);if(!el)return;
+    el.setAttribute('tabindex','0');
+    el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openFullPlayer();}});
+  });
+  $('queue-drawer').addEventListener('click',e=>{if(e.target===$('queue-drawer'))$('queue-drawer').classList.add('hidden');});
+  const baseNavigate=window.navigateView;
+  if(typeof baseNavigate==='function')window.navigateView=function(v,push=true){baseNavigate(v,push);if(v==='library'||v==='general-library'||v==='campaigns')applySearch();};
+  window.addEventListener('pageshow',()=>{applySearch();});
+  refreshCatalog();
 })();
